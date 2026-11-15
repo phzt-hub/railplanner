@@ -175,10 +175,11 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 只退出、不重拉：装好之后重启由玩家从启动器点（手册 §16）
         this.restartButton = this.addRenderableWidget(Button.builder(labelRestart(), b -> {
-            LOG.info("重启游戏以应用新版本");
-            if (!Updater.restart()) {
-                b.setMessage(Component.literal("重启失败，请手动重启"));
+            LOG.info("退出游戏（待应用的新版本：{}）", Updater.version());
+            if (!Updater.quitGame()) {
+                b.setMessage(Component.literal("退出失败，请手动关掉游戏"));
             }
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
@@ -344,7 +345,7 @@ public class RailConfigScreen extends Screen {
     }
 
     private static Component labelRestart() {
-        return Component.literal(Updater.installed() ? "立即重启应用新版本" : "重启游戏");
+        return Component.literal(Updater.installed() ? "退出游戏以应用新版本" : "退出游戏");
     }
 
     private static Component labelLock() {

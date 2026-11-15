@@ -25,7 +25,7 @@
 		"fabric-api": "*"
 	},
 	"recommends": {
-		"xaeroworldmap": ">=1.47",
+		"xaeroworldmap": ">=1.47 <1.48",
 		"modmenu": ">=21.0.1"
 	}
 }

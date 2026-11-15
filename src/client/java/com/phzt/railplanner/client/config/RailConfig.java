@@ -58,8 +58,11 @@ public final class RailConfig {
     public boolean syncEnabled = true;
     /** 已经提示过「服务端没装」的服务器，免得每次进服都在聊天栏刷一遍。 */
     public List<String> noModNotified = new ArrayList<>();
-    /** 查到新版本就自动下载、校验、替换 mods 里的 jar（重启后生效）。 */
-    public boolean autoUpdate = true;
+    /**
+     * 查到新版本就自动下载、校验、替换 mods 里的 jar（重启后生效）。
+     * 默认关：模组改自己占着的那份 jar 属于要玩家点头的动作，设置页里的「下载并安装」就是手动那一下。
+     */
+    public boolean autoUpdate = false;
     /** 线上版本 jar 的下载地址（从 release 的 assets 里挑出来的）。 */
     public String pendingAssetUrl = "";
     /** 线上版本的 sha256，形如 sha256:xxxx。 */

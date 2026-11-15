@@ -28,6 +28,9 @@ import org.slf4j.LoggerFactory;
  * <p>Fabric 的模组没法在游戏里换代码（类已经加载、mixin 已经织进去），所以能省掉的是
  * 「关游戏、开启动器、下载、解压、替换」这几步，最后仍然要重启一次。这个类负责前面全部。</p>
  *
+ * <p>它<b>不起子进程、也不重拉游戏</b>：换完 jar 只把状态置成 {@link State#INSTALLED}，
+ * 退出与重开都由玩家自己来（见 {@link #quitGame()}）。</p>
+ *
  * <p>替换用「先写成 .new 再改名」：中途断网最多留下一个 .new，原 jar 不会被写坏。</p>
  */
 public final class Updater {
@@ -205,27 +208,21 @@ public final class Updater {
     }
 
     /**
-     * 用同一行启动命令把自己再拉起来，然后关掉当前这个。
+     * 装好新版本之后，退出游戏这一步交给玩家自己按。
      *
-     * <p>子进程先 sleep 2 秒再 exec，给当前进程留出保存世界、释放文件锁的时间。</p>
+     * <p>只做「正常退出」：不拼接启动命令行、不起子进程。早先这里会读
+     * {@code ProcessHandle} 里那整行命令再 {@code exec} 一遍，那种行为在杀软和人工审核眼里
+     * 就是木马，而 Fabric 的模组本来就要重启一次，省下的只是点一下启动器。</p>
      */
-    public static boolean restart() {
-        String cmd = ProcessHandle.current().info().commandLine().orElse("");
-        if (cmd.isBlank()) {
-            detail = "拿不到启动命令行，请手动重启";
-            LOG.warn("重启失败：commandLine 为空");
-            return false;
-        }
+    public static boolean quitGame() {
         try {
-            new ProcessBuilder("sh", "-c", "sleep 2; exec " + cmd).inheritIO().start();
-            LOG.info("重启游戏：{}", cmd);
-        } catch (IOException e) {
-            detail = "重启失败：" + e.getMessage();
-            LOG.warn("重启失败：{}", e.toString());
+            Minecraft.getInstance().stop();
+            return true;
+        } catch (RuntimeException e) {
+            detail = "退出失败：" + e.getMessage();
+            LOG.warn("退出失败：{}", e.toString());
             return false;
         }
-        Minecraft.getInstance().stop();
-        return true;
     }
 
     private static void fail(String reason) {

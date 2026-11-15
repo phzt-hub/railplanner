@@ -290,9 +290,9 @@ The screen is two columns plus a bottom bar: the left column is **3D line in the
 | Update check: on / off（自动检查更新：开 / 关） | **Turn it off and not a single network request is sent** |
 | Check every: 6 / 12 / 24 / 48 h（检查间隔） | Click to cycle, default 12 |
 | Check now（立即检查更新） | Ignores the switch and the interval, checks right away |
-| Auto-download updates: on / off（自动下载更新：开 / 关） | On a new version: download, verify and replace the jar in `mods` in place (see §16) |
+| Auto-download updates: off / on（自动下载更新：关 / 开） | **Off by default.** "Download and install（下载并安装）" is the manual click; turn this on and a new version is downloaded, verified and swapped into `mods` for you (see §16) |
 | Download and install vX.Y.Z（下载并安装） | The manual click when auto-download is off; shows "(up to date)（已是最新）" when there is nothing newer |
-| Restart game（重启游戏） | Click it once installed: relaunches the game with the same command line, and the current process exits by itself |
+| Quit game（退出游戏） | A plain quit (the world is saved). Once a new version is installed the label becomes "Quit game to apply the new version（退出游戏以应用新版本）"; you restart from the launcher |
 
 Three buttons in the bottom bar: **Key binds…（按键绑定…） ｜ Open download page（打开下载页） ｜ Done（完成）**.
 
@@ -344,7 +344,7 @@ There is exactly one request, `GET https://api.github.com/repos/phzt-hub/railpla
   "hotkeysOff": false,
   "syncEnabled": true,
   "noModNotified": [],
-  "autoUpdate": true,
+  "autoUpdate": false,
   "pendingAssetUrl": "",
   "pendingSha256": "",
   "pendingSize": 0
@@ -365,7 +365,7 @@ There is exactly one request, `GET https://api.github.com/repos/phzt-hub/railpla
 | `hotkeysOff` | boolean | ✅ | Disable all of this mod's hotkeys and mouse actions (conflict avoidance); this is what that switch on the settings page writes |
 | `syncEnabled` | boolean | ✅ | Master switch for server sync; `false` = local only, not a single sync request is sent |
 | `noModNotified` | string array | ✅ | World identities already told "the server mod is not installed"; delete an entry and that server is told once more |
-| `autoUpdate` | boolean | ✅ | On a new version: download, verify, replace the jar in `mods` |
+| `autoUpdate` | boolean | ✅ | On a new version: download, verify, replace the jar in `mods`; **`false` by default**, and this is what that switch on the settings page writes |
 | `pendingAssetUrl` / `pendingSha256` / `pendingSize` | string / long | ❌ | URL, sha256 and byte size of the remote jar, written automatically after every check |
 | `lastCheckEpochMs` | long | ⚠️ | Timestamp of the last check; 0 means "never checked" (and triggers a check at once) |
 | `lastEtag` | string | ❌ | HTTP cache tag; editing it by hand costs one extra request next time |
@@ -647,7 +647,7 @@ Output: `build/libs/railplanner-0.8.0.jar`.
 | `sync/Merge.java` (common) | Three-way merge algorithm, pure functions, unit-testable outside the game |
 | `sync/PlayerStore.java` (common) | Server-side per-UUID storage, one file per player |
 | `sync/ServerSync.java` (common) | The server's three handlers: handshake / pull / push |
-| `update/Updater.java` | Download → sha256 verification → replace the jar in place → self-restart |
+| `update/Updater.java` | Download → sha256 verification → replace the jar in place (no self-relaunch; the player quits) |
 
 To change the feel, adjust the three constants in `AutoRouter`; to change the red flags, change `TUNNEL_BRIDGE_WARN_SHARE` and `WARN_MIN_LENGTH` at the top of `PlannerRenderer`.
 ---
@@ -789,7 +789,7 @@ The conclusion first: **you can't swap a Fabric mod's code, so the restart can't
 - **Mixins are woven into the target class**: we insert code into Xaero's `GuiMap` and vanilla's `DebugRenderer` (see §13), and once inserted it lives with that class and can't be taken back out.
 - **That leaves bytecode hot replacement as the only road**: the JVM's `Instrumentation.redefineClasses` only allows changing method bodies, never adding or removing fields and methods, and it needs `-javaagent` at startup while self-attach is disabled by the JDK by default — not realistic for ordinary players.
 
-So what "hot update" can deliver is "nothing for you to do except restart".
+So what "hot update" can deliver is "nothing for you to do except restart" — and by default even the download waits for your click: "auto-download updates" ships off.
 
 ### These steps are automated
 
@@ -799,20 +799,20 @@ So what "hot update" can deliver is "nothing for you to do except restart".
 | Pick the right jar by hand | Picks `railplanner-*.jar` by file name |
 | Worry about a corrupt or wrong download | **Byte size + sha256, both verified**; if either is wrong nothing is replaced |
 | Quit the game, cut, paste over | Replaces in place: writes `.new` first, then renames |
-| Start the game again | One click on "Restart game（重启游戏）" in the panel |
+| Start the game again | "Quit game（退出游戏）" in the panel, then start it again from the launcher |
 
-### What the restart actually does
+### The restart is no longer done for you
 
-Clicking "Restart game（重启游戏）" reads the current process's full command line, starts another JVM with `sh -c 'sleep 2; exec <that line>'`, and then the current process exits normally. The `sleep 2` gives the current process time to save the world and release its file locks.
+The old "Restart game（重启游戏）" read the current process's full command line and started another JVM with `sh -c 'sleep 2; exec <that line>'`. That code is gone: a mod that execs its own launch command is the shape of a trojan on every platform — antivirus tools block it and human reviewers ask about it — and a Fabric mod has to restart once anyway, so clicking the launcher yourself and being relaunched for you are the same thing.
 
-Two things to note:
+Once a new version is installed there is exactly one path: **quit the game, start it again from the launcher**. The button turns into "Quit game to apply the new version（退出游戏以应用新版本）" and quits normally (saving the world, releasing file locks) instead of restarting for you.
 
-- It comes back to the **main menu**; it won't put you into the world for you.
-- If the game was started from a launcher, the launcher will think the game has exited; the new process runs detached from the launcher and works normally.
+- What you come back to is the **main menu**; it will not put you into the world.
+- Until you restart, the "Update:"（更新：）line on the settings page keeps showing "vX.Y.Z installed, restart to apply（已装好，重启生效）".
 
 ### If you don't want it to download by itself
 
-Set "auto-download updates: off（自动下载更新）" in the right column of the settings page, or `autoUpdate: false` in the config — that falls back to "just tell me + give me the download page". To shut the whole chain down, turn "update check（自动检查更新）" off as well (then not even a request is sent).
+That is the default: a new version only shows up in chat, and installing it is the "Download and install（下载并安装）" click. To let it fetch by itself, turn "auto-download updates（自动下载更新）" on in the right column of the settings page (or `autoUpdate: true` in the config). To shut the whole chain down, turn "update check（自动检查更新）" off as well (then not even a request is sent).
 
 ---
 
