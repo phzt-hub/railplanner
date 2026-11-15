@@ -59,9 +59,9 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 
 - **[User manual (detailed)](docs/manual.en.md)** — what every panel row means, what radius and design grade actually change, how to read the 3D line in the world, config file fields, FAQ, one complete walkthrough
 - [The 3D line in the world](docs/manual.en.md#14-the-3d-line-in-the-world) — four things drawn, when they appear, `V` / `X` / `L`, cost
-- [Settings page and automatic update checks](docs/manual.en.md#7-settings-page-update-checks-and-auto-install) — two columns and ten buttons, how to read the status line
+- [Settings page and automatic update checks](docs/manual.en.md#7-settings-page-automatic-update-checks-and-auto-install) — two columns and ten buttons, how to read the status line
 - [Two-sided sync](docs/manual.en.md#15-two-sided-sync-the-server-copy) — what changes with/without the server mod, per-UUID isolation, same IP on a different port is the same server, how to pick a conflict
-- [Auto-update](docs/manual.en.md#16-auto-update-how-far-hot-swapping-actually-goes) — download, sha256 verification, in-place replace, self-restart
+- [Auto-update](docs/manual.en.md#16-auto-update-how-far-hot-swapping-can-actually-go) — download, sha256 verification, in-place replace, self-restart
 - [Sampling point Y](docs/manual.en.md#63-sampling-point-y-defaults-to-the-highest-block) — double-click to set an elevation, how the profile gets pinned, what an impossible grade looks like
 - [Server-side auto-update](docs/manual.en.md#17-server-side-auto-update-mcdr-plugin) — the MCDR plugin: swap the jar, restart by switch
 - [Known limitations](docs/manual.en.md#12-known-limitations)

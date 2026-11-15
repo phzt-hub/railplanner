@@ -1,5 +1,7 @@
 # Rail Planner · User Manual
 
+[中文](使用手册.md) · English
+
 This manual is not a feature list. It answers three things only: **how to use it**, **what every number on the panel means**, and **what is wrong when pressing something does nothing**.
 
 - First time here → [§2 Five-minute start](#2-five-minute-start)
@@ -17,7 +19,7 @@ That is how real railways are built too: fix a handful of control points on the 
 
 ```
 What you click:  A ──────── B ──────── C        a polyline, the kind that pokes you
-What it draws:   A ────╮       ╭──── C        every corner becomes a circular curve
+What it draws:   A ────╮         ╭──── C        every corner becomes a circular curve
                        ╰─────────╯
 What you lay:    one block at a time along that curve
 ```
@@ -412,7 +414,7 @@ config/railplanner/players/<UUID>.json       # dedicated server
     "mp_localhost": {
       "routes": [ { "id": "...", "name": "线 1", "color": -52429, "radius": 24.0,
                     "anchors": [[0, 0], [40, 30]], "updatedAt": 1794737600000 } ],
-      "deleted": { "另一个-id": 1794737500000 },
+      "deleted": { "another-id": 1794737500000 },
       "revision": 4
     }
   }
@@ -502,35 +504,27 @@ Press `Esc` to close the map (planning mode is still on) and walk over to the li
 ## 11. FAQ
 
 **I press `B` and nothing happens?**
-
 You are not in a world (it does nothing from the main menu), or Xaero's World Map isn't installed. With the map already open, `B` **toggles planning/read-only** instead of reopening the map.
 
 **The panel says "○ read-only" and I can't click anything?**
-
 Press `B` again. In read-only mode every route is still displayed, it just can't be edited — that is deliberate, so you can lay track against it.
 
 **I clicked empty space and it picked up another route?**
-
 You clicked within 6 pixels of a route. Move a little to the side, or press `B` to leave and enter again.
 
 **The vertex won't drag?**
-
 The hit radius is 7 pixels. With the map zoomed too far out, two points crowd together and you can't hit them accurately — **zoom in, then drag**. Also, a click only counts as adding a point if the press-release movement is under 5 pixels, so a shaky hand while panning the map normally doesn't add one by accident.
 
 **I press `R` and the radius doesn't change?**
-
 See [§6.1, point ②](#61-circular-curve-radius-r-default-24-blocks): the neighbouring points are too close, so the mod squeezed the radius down. Drag the points apart.
 
 **`J` auto-route does nothing?**
-
 Three cases: ① there are no points yet (you have to place the first one yourself); ② start and target are in the same block; ③ **the span is too large** — the search box is the start/target bounding box grown by 224 blocks on each side, and if the 8-block grid inside it exceeds 240,000 cells (roughly 3450 blocks square) it gives up. Route it in two halves.
 
 **What's with all the "unknown"?**
-
 Xaero hasn't explored that part. Walk over there, or fly a lap in creative so the map records it, and come back — the numbers will be there.
 
 **The new-version notice never pops up?**
-
 Look at the status line on the settings page: either the switch is off, or the check failed (the red text gives the reason, usually that GitHub can't be reached). "Check now（立即检查更新）" ignores both the switch and the interval.
 
 **I can't see the line in the world?**
@@ -546,11 +540,9 @@ Buried is correct: the 8% grade pushed the design elevation below the ground, so
 Those two only work "in the world, with no screen open": with chat open or the map open they don't respond.
 
 **The game crashed after I updated Xaero?**
-
 This mod is written against Xaero `1.47.x` internals (those `GuiMap` fields), so if Xaero changes its structure the mixin has to follow. Before updating, check whether the release notes have caught up.
 
 **The panel covers Xaero's buttons?**
-
 Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so the button row in the top-left no longer covers the title.
 
 ---
@@ -774,7 +766,7 @@ So what "hot update" can deliver is "nothing for you to do except restart".
 
 ### What the restart actually does
 
-Clicking "Restart game（重启游戏）" reads the current process's full command line, starts another JVM with `sh -c 'sleep 2; exec <那一行>'`, and then the current process exits normally. The `sleep 2` gives the current process time to save the world and release its file locks.
+Clicking "Restart game（重启游戏）" reads the current process's full command line, starts another JVM with `sh -c 'sleep 2; exec <that line>'`, and then the current process exits normally. The `sleep 2` gives the current process time to save the world and release its file locks.
 
 Two things to note:
 
