@@ -105,6 +105,13 @@ public final class Planner {
         if (id == null || id.isBlank()) {
             id = "default";
         }
+        try {
+            if (!java.nio.file.Files.isRegularFile(RouteStore.file(id))) {
+                migrateLegacy(id, mp);
+            }
+        } catch (Throwable t) {
+            LOG.warn("迁移旧存档失败：{}", t.toString());
+        }
         if (!id.equals(worldId) || routes.isEmpty()) {
             if (!routes.isEmpty()) {
                 RouteStore.save(worldId, routes);
@@ -117,6 +124,57 @@ public final class Planner {
             stats = null;
             statsDirty = true;
         }
+    }
+
+    /**
+     * 0.5.0 及以前本地存档按 Xaero 的世界 id 命名，0.6.0 换成 {@code sp_/mp_} 身份。
+     * 第一次用新版本进这个世界时，把老文件里的线并过来——否则玩家会以为自己的线丢了。
+     *
+     * <p>只在「新名字的文件还不存在」时跑一次，之后两边各走各的；老文件原样留着当备份。</p>
+     */
+    private static void migrateLegacy(String key, MapProcessor mp) {
+        List<RailRoute> merged = new ArrayList<>();
+        List<String> sources = new ArrayList<>();
+        try {
+            String legacy = mp == null ? null : mp.getCurrentWorldId();
+            if (legacy != null && !legacy.isBlank()) {
+                List<RailRoute> old = RouteStore.load(legacy);
+                if (!old.isEmpty()) {
+                    merged.addAll(old);
+                    sources.add(legacy);
+                }
+            }
+        } catch (Throwable ignored) {
+            // Xaero 没开或版本不对，靠下面的模糊匹配兜底
+        }
+        if (key.startsWith("mp_")) {
+            String host = key.substring(3).replace('_', '.');
+            for (RouteStore.Legacy legacy : RouteStore.scanLegacy()) {
+                String world = legacy.world().toLowerCase();
+                if (!world.startsWith("multiplayer_")) {
+                    continue;
+                }
+                String flat = world.replaceAll("[^a-z0-9._-]", "_");
+                if (!flat.contains(host) && !flat.contains(host.replace('.', '_'))) {
+                    continue;
+                }
+                List<RailRoute> old = RouteStore.load(legacy.world());
+                if (!old.isEmpty()) {
+                    merged.addAll(old);
+                    sources.add(legacy.world());
+                }
+            }
+        }
+        if (merged.isEmpty()) {
+            return;
+        }
+        // 按 id 去重，老文件的顺序优先
+        Map<String, RailRoute> byId = new LinkedHashMap<>();
+        for (RailRoute r : merged) {
+            byId.putIfAbsent(r.id, r);
+        }
+        RouteStore.save(key, new ArrayList<>(byId.values()));
+        LOG.info("迁移旧存档 → {}：{} 条线（来自 {}）", key, byId.size(), String.join(" / ", sources));
     }
 
     public static void tick(Minecraft mc) {

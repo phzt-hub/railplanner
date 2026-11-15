@@ -55,6 +55,46 @@ public final class RouteStore {
         return out;
     }
 
+    /** 目录里的一份老格式文件：里面记着它自己的世界 id。 */
+    public record Legacy(String world, Path path) {
+    }
+
+    /**
+     * 列出 {@code railplanner/} 下所有老存档及其世界 id。
+     *
+     * <p>0.5.0 及以前世界的身份直接用 Xaero 的 id（单人像 {@code railplanner^us^test}，
+     * 多人像 {@code Multiplayer_xxx}），文件名是它清洗后的样子。0.6.0 换成模组自己算的
+     * {@code sp_/mp_} 身份，于是需要一次迁移——见 {@code Planner.migrateLegacy}。</p>
+     */
+    public static List<Legacy> scanLegacy() {
+        List<Legacy> out = new ArrayList<>();
+        Path dir = FabricLoader.getInstance().getGameDir().resolve("railplanner");
+        if (!Files.isDirectory(dir)) {
+            return out;
+        }
+        try (var entries = Files.list(dir)) {
+            for (Path p : entries.toList()) {
+                String name = p.getFileName().toString();
+                if (!name.endsWith(".json") || !Files.isRegularFile(p)) {
+                    continue;
+                }
+                String world = name.substring(0, name.length() - 5);
+                try {
+                    FileDto dto = GSON.fromJson(Files.readString(p, StandardCharsets.UTF_8), FileDto.class);
+                    if (dto != null && dto.world != null && !dto.world.isBlank()) {
+                        world = dto.world;
+                    }
+                } catch (Exception ignored) {
+                    // 坏文件就按文件名当世界 id，下面 load 会自己跳过
+                }
+                out.add(new Legacy(world, p));
+            }
+        } catch (IOException e) {
+            LOGGER.warn("扫描老存档失败: {}", e.toString());
+        }
+        return out;
+    }
+
     public static void save(String worldId, List<RailRoute> routes) {
         Path p = file(worldId);
         FileDto dto = new FileDto();

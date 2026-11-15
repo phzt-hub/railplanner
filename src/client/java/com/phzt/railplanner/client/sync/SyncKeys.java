@@ -26,7 +26,11 @@ public final class SyncKeys {
         IntegratedServer sp = mc.getSingleplayerServer();
         if (sp != null) {
             try {
-                return "sp_" + clean(sp.getWorldPath(LevelResource.ROOT).getFileName().toString());
+                // ROOT 在部分版本里解析成 "."，用 level.dat 反推存档目录最稳
+                java.nio.file.Path levelDat = sp.getWorldPath(LevelResource.LEVEL_DATA_FILE);
+                java.nio.file.Path dir = levelDat == null ? null : levelDat.getParent();
+                String name = dir == null || dir.getFileName() == null ? "unknown" : dir.getFileName().toString();
+                return "sp_" + clean(name);
             } catch (Throwable ignored) {
                 return "sp_unknown";
             }
