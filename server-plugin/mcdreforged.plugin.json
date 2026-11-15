@@ -1,6 +1,6 @@
 {
   "id": "railplanner_updater",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "RailPlannerUpdater",
   "description": {
     "en_us": "Keep the Rail Planner server mod on the latest GitHub release; swap the jar and restart the server.",

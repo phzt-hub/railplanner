@@ -191,9 +191,11 @@ def check_and_update(server: PluginServerInterface, manual: bool = False) -> str
 
     if cfg.auto_restart and server.is_server_running():
         delay = max(3, int(cfg.restart_delay_seconds))
-        if cfg.restart_delay_seconds >= 0:
-            server.say('§e[Rail Planner] 服务端模组更新到 {}，{} 秒后重启'.format(latest, delay))
-        server.schedule_task(lambda: _restart(server), delay=delay)
+        server.say('§e[Rail Planner] 服务端模组更新到 {}，{} 秒后重启'.format(latest, delay))
+        # MCDR 的 schedule_task 不接受 delay，这里用一个后台计时器
+        timer = threading.Timer(delay, lambda: _restart(server))
+        timer.daemon = True
+        timer.start()
     return _last_result
 
 
