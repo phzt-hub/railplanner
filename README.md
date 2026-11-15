@@ -6,6 +6,8 @@
 - 客户端 Mod，服务端不用装；**必须装 Xaero's World Map ≥ 1.47**（本工程对着 `fabric-26.3-1.47.2` 开发）
 - 不修改、不重打包 Xaero 的任何代码，只用 mixin 挂进它的地图界面
 
+![在地图上选线](docs/screenshot.png)
+
 ## 玩法
 
 | 操作 | 作用 |
