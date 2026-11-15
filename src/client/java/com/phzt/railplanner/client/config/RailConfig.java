@@ -32,6 +32,8 @@ public final class RailConfig {
     public String latestVersion = "";
     /** 上次读到的 release 页面。 */
     public String latestUrl = "";
+    /** 地图上的信息面板是否折叠成一行（按 H 切换，记住状态）。 */
+    public boolean hudCollapsed;
 
     private static RailConfig instance = new RailConfig();
 

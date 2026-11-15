@@ -8,6 +8,7 @@
   "key.railplanner.grade_down": "设计限坡调低（Shift 5%）",
   "key.railplanner.grade_up": "设计限坡调高（Shift 5%）",
   "key.railplanner.settings": "打开设置页",
+  "key.railplanner.hud_collapse": "折叠/展开信息面板",
 
   "railplanner.config.title": "铁路选线设置",
   "railplanner.config.updates_on": "自动检查更新：开",

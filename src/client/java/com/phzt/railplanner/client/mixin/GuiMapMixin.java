@@ -36,10 +36,14 @@ public abstract class GuiMapMixin {
         return new MapView(this.cameraX, this.cameraZ, this.scale, this.screenScale, self.width, self.height);
     }
 
+    /**
+     * 画在 Xaero 自己的界面（左上角那排按钮、底部缩放条）之后，否则按钮会压在我们的面板上，
+     * 顶掉「铁路选线」几个字。
+     */
     @Inject(method = "extractRenderState",
             at = @At(value = "INVOKE",
                     target = "Lxaero/lib/client/gui/ScreenBase;extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V",
-                    shift = At.Shift.BEFORE))
+                    shift = At.Shift.AFTER))
     private void railplanner$render(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         Planner.render(g, this.railplanner$view(), mouseX, mouseY, ((GuiMap) (Object) this).getMapProcessor());
     }

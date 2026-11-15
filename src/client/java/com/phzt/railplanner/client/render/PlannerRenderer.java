@@ -1,6 +1,7 @@
 package com.phzt.railplanner.client.render;
 
 import com.phzt.railplanner.client.RailPlannerClient;
+import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.geom.Vec2;
@@ -17,12 +18,18 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /** 世界地图上的路线绘制与统计面板。 */
 public final class PlannerRenderer {
 
-    private static final int PANEL_BG = 0xD0101418;
+    /** 面板底色：留一点点透，但盖得住 Xaero 自己画在左上角的按钮。 */
+    private static final int PANEL_BG = 0xF2101418;
     private static final int PANEL_BORDER = 0xFF3A7BD5;
     private static final int TITLE = 0xFFFFD740;
     private static final int TEXT = 0xFFE6E6E6;
     private static final int DIM = 0xFF9AA4AE;
     private static final int ACCENT = 0xFF69F0AE;
+    private static final int WARN = 0xFFFF6E6E;
+    private static final int CAUTION = 0xFFFFB74D;
+    /** 隧道/桥占已判长度的比例超过这个数（且超过 32 格）就算工程偏大。 */
+    private static final double TUNNEL_BRIDGE_WARN_SHARE = 0.35;
+    private static final double WARN_MIN_LENGTH = 32.0;
 
     private PlannerRenderer() {
     }
@@ -38,7 +45,12 @@ public final class PlannerRenderer {
             drawRubberBand(g, view, current, mouseX, mouseY);
         }
         if (Planner.isActive()) {
-            drawHud(g, view, mouseX, mouseY, current);
+            if (RailConfig.get().hudCollapsed) {
+                drawHudCollapsed(g, current);
+            } else {
+                drawHud(g, view, mouseX, mouseY, current);
+            }
+            drawHover(g, view, mouseX, mouseY, current);
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
             badge(g, font, 6, 6, "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
@@ -133,15 +145,15 @@ public final class PlannerRenderer {
         Alignment al = current == null ? null : current.alignment();
 
         List<String> lines = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
         if (current == null) {
-            lines.add("左键点地图，开始画一条新线");
-            lines.add(RailPlannerClient.keyName(RailPlannerClient.TOGGLE) + " 退出规划 · Esc 关闭地图");
+            add(lines, colors, "左键点地图，开始画一条新线", TEXT);
+            add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.TOGGLE) + " 退出规划 · Esc 关闭地图", TEXT);
         } else {
-            // 下面按实际状态补行
-            lines.add(String.format("%s · %d 点 · R %.0f", current.name, current.anchors.size(), current.radius));
+            add(lines, colors, String.format("%s · %d 点 · R %.0f", current.name, current.anchors.size(), current.radius), TEXT);
             if (al != null && al.length() > 0.1) {
-                lines.add(String.format("长 %.0f 格 · 轨道 %d 格 · 曲线 %d 段",
-                        al.length(), current.path().size(), al.corners().size()));
+                add(lines, colors, String.format("长 %.0f 格 · 轨道 %d 格 · 曲线 %d 段",
+                        al.length(), current.path().size(), al.corners().size()), TEXT);
                 if (!al.corners().isEmpty()) {
                     double minR = Double.MAX_VALUE;
                     double maxDefl = 0;
@@ -149,27 +161,33 @@ public final class PlannerRenderer {
                         minR = Math.min(minR, c.radius);
                         maxDefl = Math.max(maxDefl, c.deflectionDegrees());
                     }
-                    lines.add(String.format("最小半径 %.1f · 最大偏角 %.1f°", minR, maxDefl));
+                    add(lines, colors, String.format("最小半径 %.1f · 最大偏角 %.1f°", minR, maxDefl), TEXT);
                 }
             }
             if (st != null) {
-                lines.add(String.format("地面最大坡 %.1f%% · 设计限坡 %.1f%%（%s %s 调）",
-                        st.maxTerrainGradePct, RouteStats.MAX_DESIGN_GRADE,
+                boolean gradeBad = gradeOverLimit(st);
+                add(lines, colors, String.format("地面最大坡 %.1f%%%s · 设计限坡 %.1f%%（%s %s 调）",
+                        st.maxTerrainGradePct, gradeBad ? "（超限）" : "", RouteStats.MAX_DESIGN_GRADE,
                         RailPlannerClient.keyName(RailPlannerClient.GRADE_DOWN),
-                        RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)));
-                lines.add(String.format("爬 %d · 降 %d", Math.round(st.climb), Math.round(st.descent)));
-                lines.add(String.format("隧道 %d · 桥 %d · 地面 %d · 未知 %d",
-                        Math.round(st.tunnelLength), Math.round(st.bridgeLength), Math.round(st.groundLength), st.unknownCells));
-                lines.add(String.format("铁轨 %d · 动力 %d · 火把 %d", st.rails, st.poweredRails, st.torches));
-                lines.add(String.format("矿车 %s · %s（8 / 4 格每秒）",
-                        RouteStats.time(st.secondsAt8), RouteStats.time(st.secondsAt4)));
+                        RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)), gradeBad ? WARN : TEXT);
+                add(lines, colors, String.format("爬 %d · 降 %d", Math.round(st.climb), Math.round(st.descent)), TEXT);
+                boolean tunnelBad = shareOverLimit(st.tunnelLength, st);
+                boolean bridgeBad = shareOverLimit(st.bridgeLength, st);
+                add(lines, colors, String.format("隧道 %d%s · 桥 %d%s · 地面 %d · 未知 %d",
+                        Math.round(st.tunnelLength), tunnelBad ? "（超限）" : "",
+                        Math.round(st.bridgeLength), bridgeBad ? "（超限）" : "",
+                        Math.round(st.groundLength), st.unknownCells),
+                        (tunnelBad || bridgeBad) ? WARN : (st.unknownCells > 0 ? CAUTION : TEXT));
+                add(lines, colors, String.format("铁轨 %d · 动力 %d · 火把 %d", st.rails, st.poweredRails, st.torches), TEXT);
+                add(lines, colors, String.format("矿车 %s · %s（8 / 4 格每秒）",
+                        RouteStats.time(st.secondsAt8), RouteStats.time(st.secondsAt4)), TEXT);
             }
         }
-
-        lines.add("左键加点/拖顶点 · 右键删点 · "
+        add(lines, colors, "左键加点/拖顶点 · 右键删点 · "
                 + RailPlannerClient.keyName(RailPlannerClient.FINISH) + " 完成 · "
                 + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
-                + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线");
+                + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
+                + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 折叠", DIM);
 
         int x = 6;
         int y = 6;
@@ -189,14 +207,70 @@ public final class PlannerRenderer {
         g.text(font, Planner.isActive() ? "● 规划中" : "○ 只读", tx + 62, ty, Planner.isActive() ? ACCENT : DIM);
         ty += lineH + 3;
         for (int i = 0; i < lines.size(); i++) {
-            boolean hint = i == lines.size() - 1;
-            g.text(font, lines.get(i), tx, ty, hint ? DIM : TEXT);
+            g.text(font, lines.get(i), tx, ty, colors.get(i));
             ty += lineH;
         }
         if (st != null) {
             drawGradeChart(g, x + 8, ty + 6, w - 16, 28, st);
         }
+    }
 
+    /** 折叠状态下的单行面板：线名、点数、坡与隧桥，超限的项标红。 */
+    private static void drawHudCollapsed(GuiGraphicsExtractor g, RailRoute current) {
+        Font font = Minecraft.getInstance().font;
+        RouteStats st = Planner.stats();
+        List<String> texts = new ArrayList<>();
+        List<Integer> colors = new ArrayList<>();
+        if (current == null) {
+            add(texts, colors, "铁路选线 · 左键点地图开始画线", TEXT);
+        } else {
+            add(texts, colors, current.name, TITLE);
+            add(texts, colors, String.format(" · %d 点", current.anchors.size()), TEXT);
+            if (st != null) {
+                boolean gradeBad = gradeOverLimit(st);
+                add(texts, colors, String.format(" · 坡 %.1f%%%s", st.maxTerrainGradePct,
+                        gradeBad ? "（超限）" : ""), gradeBad ? WARN : TEXT);
+                int tunnel = (int) Math.round(st.tunnelLength);
+                int bridge = (int) Math.round(st.bridgeLength);
+                if (tunnel > 0) {
+                    boolean tunnelBad = shareOverLimit(st.tunnelLength, st);
+                    add(texts, colors, String.format(" · 隧 %d%s", tunnel, tunnelBad ? "（超限）" : ""),
+                            tunnelBad ? WARN : TEXT);
+                }
+                if (bridge > 0) {
+                    boolean bridgeBad = shareOverLimit(st.bridgeLength, st);
+                    add(texts, colors, String.format(" · 桥 %d%s", bridge, bridgeBad ? "（超限）" : ""),
+                            bridgeBad ? WARN : TEXT);
+                }
+                if (st.unknownCells > 0) {
+                    add(texts, colors, String.format(" · 未知 %d", st.unknownCells), CAUTION);
+                }
+            }
+        }
+        add(texts, colors, " · " + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 展开", DIM);
+
+        int x = 6;
+        int y = 6;
+        int w = 26;
+        for (String t : texts) {
+            w += font.width(t);
+        }
+        int h = 18;
+        panel(g, x, y, w, h);
+        // 左边一小块状态色，省掉「铁路选线 · 规划中」那几个字
+        g.fill(x + 6, y + 6, x + 12, y + 12, Planner.isActive() ? ACCENT : DIM);
+        int tx = x + 17;
+        int ty = y + 6;
+        for (int i = 0; i < texts.size(); i++) {
+            g.text(font, texts.get(i), tx, ty, colors.get(i));
+            tx += font.width(texts.get(i));
+        }
+    }
+
+    /** 鼠标停在顶点或曲线上的小提示，折叠时也照常显示。 */
+    private static void drawHover(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY, RailRoute current) {
+        Font font = Minecraft.getInstance().font;
+        Alignment al = current == null ? null : current.alignment();
         if (current != null && Planner.hoverIndex >= 0 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
             tooltip(g, font, mouseX + 12, mouseY - 4, "点 " + (Planner.hoverIndex + 1) + "  (" + a.x() + ", " + a.z() + ")");
@@ -206,6 +280,25 @@ public final class PlannerRenderer {
             tooltip(g, font, mouseX + 12, mouseY + 10, String.format("R %.1f · Δ %.1f° · T %.1f · L %.1f · E %.1f",
                     near.radius, near.deflectionDegrees(), near.tangent, near.arcLength, near.external));
         }
+    }
+
+    private static void add(List<String> lines, List<Integer> colors, String text, int color) {
+        lines.add(text);
+        colors.add(color);
+    }
+
+    /** 地面坡是否超过设计限坡（留 0.05% 的浮点余量）。 */
+    private static boolean gradeOverLimit(RouteStats st) {
+        return st != null && st.maxTerrainGradePct > RouteStats.MAX_DESIGN_GRADE + 0.05;
+    }
+
+    /** 隧道或桥占已判长度的比例过高（> 35% 且超过 32 格）才算工程偏大。 */
+    private static boolean shareOverLimit(double length, RouteStats st) {
+        if (st == null || length <= WARN_MIN_LENGTH) {
+            return false;
+        }
+        double total = st.tunnelLength + st.bridgeLength + st.groundLength;
+        return total > 0 && length > total * TUNNEL_BRIDGE_WARN_SHARE;
     }
 
     private static Alignment.Corner nearestCorner(Alignment al, MapView view, int mouseX, int mouseY) {
@@ -290,7 +383,7 @@ public final class PlannerRenderer {
 
     private static void badge(GuiGraphicsExtractor g, Font font, int x, int y, String text) {
         int w = font.width(text) + 10;
-        g.fill(x, y, x + w, y + 14, 0xB0101418);
+        g.fill(x, y, x + w, y + 14, 0xE8101418);
         g.text(font, text, x + 5, y + 3, TEXT);
     }
 

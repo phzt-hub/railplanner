@@ -8,6 +8,7 @@
   "key.railplanner.grade_down": "Lower design grade (Shift 5%)",
   "key.railplanner.grade_up": "Raise design grade (Shift 5%)",
   "key.railplanner.settings": "Open settings",
+  "key.railplanner.hud_collapse": "Collapse/expand info panel",
 
   "railplanner.config.title": "Rail Planner Settings",
   "railplanner.config.updates_on": "Update check: on",

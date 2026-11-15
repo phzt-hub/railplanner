@@ -37,12 +37,17 @@ public final class RailPlannerClient implements ClientModInitializer {
     public static final KeyMapping GRADE_UP =
             new KeyMapping("key.railplanner.grade_up", InputConstants.Type.KEYBOARD, InputConstants.KEY_RBRACKET, CATEGORY);
     /** 没装 Mod Menu 就靠它打开设置页。U 原版没占用（O 被原版「好友列表」占了）。 */
+    /** 折叠/展开地图上的信息面板。H 与原版 debug.showAdvancedTooltips 同键，但那只在 F3 里有作用。 */
+    public static final KeyMapping HUD_COLLAPSE =
+            new KeyMapping("key.railplanner.hud_collapse", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_H, CATEGORY);
+
     public static final KeyMapping SETTINGS =
             new KeyMapping("key.railplanner.settings", InputConstants.Type.KEYBOARD,
                     InputConstants.KEY_U, CATEGORY);
 
     private static final KeyMapping[] ALL = {
-            TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, SETTINGS
+            TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, HUD_COLLAPSE, SETTINGS
     };
 
     @Override

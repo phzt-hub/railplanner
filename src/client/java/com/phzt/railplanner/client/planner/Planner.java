@@ -1,6 +1,7 @@
 package com.phzt.railplanner.client.planner;
 
 import com.phzt.railplanner.client.RailPlannerClient;
+import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.model.Anchor;
 import com.phzt.railplanner.client.model.RailRoute;
@@ -275,6 +276,14 @@ public final class Planner {
             return false;
         }
         boolean shift = event.hasShiftDown();
+        if (RailPlannerClient.HUD_COLLAPSE.matches(event)) {
+            RailConfig config = RailConfig.get();
+            config.hudCollapsed = !config.hudCollapsed;
+            RailConfig.save();
+            LOG.info("按键 {}：信息面板 → {}", RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE),
+                    config.hudCollapsed ? "折叠成一行" : "展开");
+            return true;
+        }
         if (RailPlannerClient.FINISH.matches(event)) {
             finishRoute();
             LOG.info("按键 {}：完成并保存这条线", RailPlannerClient.keyName(RailPlannerClient.FINISH));
