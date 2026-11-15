@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.sync;
 
+import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.RailPlanner;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.model.RailRoute;
@@ -412,12 +413,12 @@ public final class SyncClient {
     /** HUD 上那行字。 */
     public static String hudText() {
         return switch (state) {
-            case OFF -> "未连接";
-            case DISABLED -> "同步已关（只用本地）";
-            case HELLO, PULL, PUSH -> "同步中…";
-            case READY -> "已同步";
-            case ABSENT -> "服务端没装，只用本地";
-            case CONFLICT -> "有冲突待选";
+            case OFF -> Loc.s("未连接", "not connected");
+            case DISABLED -> Loc.s("同步已关（只用本地）", "sync off, local only");
+            case HELLO, PULL, PUSH -> Loc.s("同步中…", "syncing…");
+            case READY -> Loc.s("已同步", "in sync");
+            case ABSENT -> Loc.s("服务端没装，只用本地", "not on the server, local only");
+            case CONFLICT -> Loc.s("有冲突待选", "conflicts to resolve");
         };
     }
 

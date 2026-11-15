@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.render;
 
+import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.model.RailRoute;
@@ -45,37 +46,37 @@ public final class WorldHud {
         colors.add(TITLE);
         if (st != null) {
             boolean bad = st.maxTerrainGradePct > RouteStats.MAX_DESIGN_GRADE + 0.05;
-            texts.add(String.format(" · 坡 %.1f%%", st.maxTerrainGradePct));
+            texts.add(String.format(Loc.s(" · 坡 %.1f%%", " · grade %.1f%%"), st.maxTerrainGradePct));
             colors.add(bad ? WARN : TEXT);
             if (bad) {
-                texts.add("（超限）");
+                texts.add(Loc.s("（超限）", " (over limit)"));
                 colors.add(WARN);
             }
             int tunnel = (int) Math.round(st.tunnelLength);
             int bridge = (int) Math.round(st.bridgeLength);
             if (tunnel > 0) {
-                texts.add(" · 隧 " + tunnel);
+                texts.add(Loc.s(" · 隧 ", " · tunnel ") + tunnel);
                 colors.add(TEXT);
             }
             if (bridge > 0) {
-                texts.add(" · 桥 " + bridge);
+                texts.add(Loc.s(" · 桥 ", " · bridge ") + bridge);
                 colors.add(TEXT);
             }
             if (st.unknownCells > 0) {
-                texts.add(" · 未知 " + st.unknownCells);
+                texts.add(Loc.s(" · 未知 ", " · unknown ") + st.unknownCells);
                 colors.add(CAUTION);
             }
         }
         if (!config.worldLines) {
-            texts.add(" · 3D 线关");
+            texts.add(Loc.s(" · 3D 线关", " · 3D line off"));
             colors.add(DIM);
         }
         if (config.anchorLock) {
             texts.add(" · 点已锁");
             colors.add(CAUTION);
         }
-        texts.add(" · " + RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 开关 · "
-                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山");
+        texts.add(" · " + RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + Loc.s(" 开关 · ", " toggle · ")
+                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + Loc.s(" 穿山", " through"));
         colors.add(DIM);
 
         int width = 12;

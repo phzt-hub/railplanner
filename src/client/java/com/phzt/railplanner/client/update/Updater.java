@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.update;
 
+import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.RailPlanner;
 import com.phzt.railplanner.client.config.RailConfig;
 import java.io.IOException;
@@ -251,10 +252,10 @@ public final class Updater {
     /** 给界面用的一行状态。 */
     public static String statusText() {
         return switch (state) {
-            case IDLE -> "未下载";
+            case IDLE -> Loc.s("未下载", "not downloaded");
             case DOWNLOADING -> detail;
             case INSTALLED -> detail;
-            case FAILED -> "更新失败：" + detail;
+            case FAILED -> Loc.s("更新失败：", "update failed: ") + detail;
         };
     }
 }

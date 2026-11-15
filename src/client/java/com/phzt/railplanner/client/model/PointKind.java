@@ -8,21 +8,24 @@ package com.phzt.railplanner.client.model;
  */
 public enum PointKind {
 
-    PLAIN(0, "普通点", 0xFFCFD8DC),
-    STATION(1, "车站", 0xFF4FC3F7),
-    CURVE(2, "弯道控制点", 0xFFB39DDB),
-    TUNNEL(3, "隧道口", 0xFFFFB74D),
-    BRIDGE(4, "桥梁", 0xFF4DB6AC),
-    SIGNAL(5, "信号机", 0xFFFF6E6E);
+    PLAIN(0, "普通点", "Plain", 0xFFCFD8DC),
+    STATION(1, "车站", "Station", 0xFF4FC3F7),
+    CURVE(2, "弯道控制点", "Curve control point", 0xFFB39DDB),
+    TUNNEL(3, "隧道口", "Tunnel portal", 0xFFFFB74D),
+    BRIDGE(4, "桥梁", "Bridge", 0xFF4DB6AC),
+    SIGNAL(5, "信号机", "Signal", 0xFFFF6E6E);
 
     public final int id;
     public final String label;
+    /** 英文名，给非中文客户端用（见 {@link com.phzt.railplanner.client.Loc}）。 */
+    public final String labelEn;
     /** 图标主色（地图上画形状用）。 */
     public final int color;
 
-    PointKind(int id, String label, int color) {
+    PointKind(int id, String label, String labelEn, int color) {
         this.id = id;
         this.label = label;
+        this.labelEn = labelEn;
         this.color = color;
     }
 
@@ -46,6 +49,6 @@ public enum PointKind {
     }
 
     public String label() {
-        return label;
+        return com.phzt.railplanner.client.Loc.s(label, labelEn);
     }
 }

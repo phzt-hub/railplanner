@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.render;
 
+import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
@@ -78,9 +79,9 @@ public final class PlannerRenderer {
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
             badge(g, font, 6, 6, RailConfig.get().hotkeysOff
-                    ? "铁路选线 · 快捷键已停用，设置页里可恢复（" + routes.size() + " 条线）"
-                    : "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
-                            + " 进入规划模式（" + routes.size() + " 条线）");
+                    ? Loc.s("铁路选线 · 快捷键已停用，设置页里可恢复（", "Rail Planner · hotkeys disabled — re-enable them in settings (") + routes.size() + Loc.s(" 条线）", " routes)")
+                    : Loc.s("铁路选线 · 按 ", "Rail Planner · press ") + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
+                            + Loc.s(" 进入规划模式（", " for planning mode (") + routes.size() + Loc.s(" 条线）", " routes)"));
         }
     }
 
@@ -249,7 +250,7 @@ public final class PlannerRenderer {
         thickLine(g, x0, y0, mouseX, mouseY, color, 1);
         double d = Math.hypot(mouseX - x0, mouseY - y0) / Math.max(0.001, view.pixelsPerBlock());
         Font font = Minecraft.getInstance().font;
-        g.text(font, String.format("%.0f 格", d), mouseX + 6, mouseY + 6, TEXT);
+        g.text(font, String.format(Loc.s("%.0f 格", "%.0f blocks"), d), mouseX + 6, mouseY + 6, TEXT);
     }
 
     private static void drawHud(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY, RailRoute current) {
@@ -260,12 +261,12 @@ public final class PlannerRenderer {
         List<String> lines = new ArrayList<>();
         List<Integer> colors = new ArrayList<>();
         if (current == null) {
-            add(lines, colors, "左键点地图，开始画一条新线", TEXT);
-            add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.TOGGLE) + " 退出规划 · Esc 关闭地图", TEXT);
+            add(lines, colors, Loc.s("左键点地图，开始画一条新线", "Left-click the map to start a new line"), TEXT);
+            add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.TOGGLE) + Loc.s(" 退出规划 · Esc 关闭地图", " leave planning · Esc closes the map"), TEXT);
         } else {
-            add(lines, colors, String.format("%s · %d 点 · R %.0f", current.name, current.anchors.size(), current.radius), TEXT);
+            add(lines, colors, String.format(Loc.s("%s · %d 点 · R %.0f", "%s · %d pts · R %.0f"), current.name, current.anchors.size(), current.radius), TEXT);
             if (al != null && al.length() > 0.1) {
-                add(lines, colors, String.format("长 %.0f 格 · 轨道 %d 格 · 曲线 %d 段",
+                add(lines, colors, String.format(Loc.s("长 %.0f 格 · 轨道 %d 格 · 曲线 %d 段", "Length %.0f blocks · track %d blocks · %d curves"),
                         al.length(), current.path().size(), al.corners().size()), TEXT);
                 if (!al.corners().isEmpty()) {
                     double minR = Double.MAX_VALUE;
@@ -274,44 +275,44 @@ public final class PlannerRenderer {
                         minR = Math.min(minR, c.radius);
                         maxDefl = Math.max(maxDefl, c.deflectionDegrees());
                     }
-                    add(lines, colors, String.format("最小半径 %.1f · 最大偏角 %.1f°", minR, maxDefl), TEXT);
+                    add(lines, colors, String.format(Loc.s("最小半径 %.1f · 最大偏角 %.1f°", "Min radius %.1f · max deflection %.1f°"), minR, maxDefl), TEXT);
                 }
             }
             if (st != null) {
                 // 点的 Y 钉住之后，设计坡是玩家自己定的，可能顶到限坡以上：两个坡分开标。
                 boolean terrainBad = gradeOverLimit(st);
                 boolean designBad = st.maxDesignGradePct > RouteStats.MAX_DESIGN_GRADE + 0.05;
-                add(lines, colors, String.format("地面最大坡 %.1f%%%s · 设计最大坡 %.1f%%%s · 限坡 %.1f%%（%s %s 调）",
-                        st.maxTerrainGradePct, terrainBad ? "（超限）" : "",
-                        st.maxDesignGradePct, designBad ? "（超限）" : "",
+                add(lines, colors, String.format(Loc.s("地面最大坡 %.1f%%%s · 设计最大坡 %.1f%%%s · 限坡 %.1f%%（%s %s 调）", "Ground grade %.1f%%%s · design grade %.1f%%%s · limit %.1f%% (%s %s to adjust)"),
+                        st.maxTerrainGradePct, terrainBad ? Loc.s("（超限）", " (over limit)") : "",
+                        st.maxDesignGradePct, designBad ? Loc.s("（超限）", " (over limit)") : "",
                         RouteStats.MAX_DESIGN_GRADE,
                         RailPlannerClient.keyName(RailPlannerClient.GRADE_DOWN),
                         RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)),
                         (terrainBad || designBad) ? WARN : TEXT);
-                add(lines, colors, String.format("爬 %d · 降 %d", Math.round(st.climb), Math.round(st.descent)), TEXT);
+                add(lines, colors, String.format(Loc.s("爬 %d · 降 %d", "climb %d · descent %d"), Math.round(st.climb), Math.round(st.descent)), TEXT);
                 boolean tunnelBad = shareOverLimit(st.tunnelLength, st);
                 boolean bridgeBad = shareOverLimit(st.bridgeLength, st);
-                add(lines, colors, String.format("隧道 %d%s · 桥 %d%s · 地面 %d · 未知 %d",
-                        Math.round(st.tunnelLength), tunnelBad ? "（超限）" : "",
-                        Math.round(st.bridgeLength), bridgeBad ? "（超限）" : "",
+                add(lines, colors, String.format(Loc.s("隧道 %d%s · 桥 %d%s · 地面 %d · 未知 %d", "Tunnel %d%s · bridge %d%s · ground %d · unknown %d"),
+                        Math.round(st.tunnelLength), tunnelBad ? Loc.s("（超限）", " (over limit)") : "",
+                        Math.round(st.bridgeLength), bridgeBad ? Loc.s("（超限）", " (over limit)") : "",
                         Math.round(st.groundLength), st.unknownCells),
                         (tunnelBad || bridgeBad) ? WARN : (st.unknownCells > 0 ? CAUTION : TEXT));
-                add(lines, colors, String.format("铁轨 %d · 动力 %d · 火把 %d", st.rails, st.poweredRails, st.torches), TEXT);
-                add(lines, colors, String.format("矿车 %s · %s（8 / 4 格每秒）",
+                add(lines, colors, String.format(Loc.s("铁轨 %d · 动力 %d · 火把 %d", "Rails %d · powered %d · torches %d"), st.rails, st.poweredRails, st.torches), TEXT);
+                add(lines, colors, String.format(Loc.s("矿车 %s · %s（8 / 4 格每秒）", "Cart %s · %s (8 / 4 blocks per second)"),
                         RouteStats.time(st.secondsAt8), RouteStats.time(st.secondsAt4)), TEXT);
             }
         }
-        add(lines, colors, "左键加点/拖顶点 · Ctrl+左键在线上插点 · 右键删点 · "
-                + RailPlannerClient.keyName(RailPlannerClient.FINISH) + " 完成 · "
-                + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
-                + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
-                + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 折叠", DIM);
-        add(lines, colors, "双击顶点改 Y/名字/类型 · 双击上面那行线名改名字与颜色", DIM);
+        add(lines, colors, Loc.s("左键加点/拖顶点 · Ctrl+左键在线上插点 · 右键删点 · ", "LMB add or drag a point · Ctrl+LMB insert on the line · RMB delete · ")
+                + RailPlannerClient.keyName(RailPlannerClient.FINISH) + Loc.s(" 完成 · ", " finish · ")
+                + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + Loc.s(" 半径 · ", " radius · ")
+                + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + Loc.s(" 自动选线 · ", " auto-route · ")
+                + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + Loc.s(" 折叠", " collapse"), DIM);
+        add(lines, colors, Loc.s("双击顶点改 Y/名字/类型 · 双击上面那行线名改名字与颜色", "Double-click a vertex to edit Y, name, type · double-click the route name above to rename and recolour"), DIM);
 
         boolean locked = RailConfig.get().anchorLock;
-        add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 世界里的 3D 线 · "
-                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山可见 · "
-                + RailPlannerClient.keyName(RailPlannerClient.LOCK) + (locked ? " 点已锁" : " 锁点"),
+        add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + Loc.s(" 世界里的 3D 线 · ", " 3D line in the world · ")
+                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + Loc.s(" 穿山可见 · ", " see through terrain · ")
+                + RailPlannerClient.keyName(RailPlannerClient.LOCK) + (locked ? Loc.s(" 点已锁", " points locked") : Loc.s(" 锁点", " lock points")),
                 locked ? CAUTION : DIM);
 
         int x = 6;
@@ -320,7 +321,7 @@ public final class PlannerRenderer {
         for (String line : lines) {
             w = Math.max(w, font.width(line) + 18);
         }
-        w = Math.max(w, font.width("铁路选线") + 74);
+        w = Math.max(w, font.width(Loc.s("铁路选线", "Rail Planner")) + 74);
         int lineH = 11;
         int chartH = st != null ? 42 : 0;
         int h = 20 + lines.size() * lineH + chartH + 8;
@@ -328,8 +329,8 @@ public final class PlannerRenderer {
 
         int tx = x + 8;
         int ty = y + 7;
-        g.text(font, "铁路选线", tx, ty, TITLE);
-        g.text(font, Planner.isActive() ? "● 规划中" : "○ 只读", tx + 62, ty, Planner.isActive() ? ACCENT : DIM);
+        g.text(font, Loc.s("铁路选线", "Rail Planner"), tx, ty, TITLE);
+        g.text(font, Planner.isActive() ? Loc.s("● 规划中", "● Planning") : Loc.s("○ 只读", "○ Read-only"), tx + 62, ty, Planner.isActive() ? ACCENT : DIM);
         ty += lineH + 3;
         for (int i = 0; i < lines.size(); i++) {
             g.text(font, lines.get(i), tx, ty, colors.get(i));
@@ -354,32 +355,32 @@ public final class PlannerRenderer {
         List<String> texts = new ArrayList<>();
         List<Integer> colors = new ArrayList<>();
         if (current == null) {
-            add(texts, colors, "铁路选线 · 左键点地图开始画线", TEXT);
+            add(texts, colors, Loc.s("铁路选线 · 左键点地图开始画线", "Rail Planner · click the map to start drawing"), TEXT);
         } else {
             add(texts, colors, current.name, TITLE);
-            add(texts, colors, String.format(" · %d 点", current.anchors.size()), TEXT);
+            add(texts, colors, String.format(Loc.s(" · %d 点", " · %d pts"), current.anchors.size()), TEXT);
             if (st != null) {
                 boolean gradeBad = gradeOverLimit(st);
-                add(texts, colors, String.format(" · 坡 %.1f%%%s", st.maxTerrainGradePct,
-                        gradeBad ? "（超限）" : ""), gradeBad ? WARN : TEXT);
+                add(texts, colors, String.format(Loc.s(" · 坡 %.1f%%%s", " · grade %.1f%%%s"), st.maxTerrainGradePct,
+                        gradeBad ? Loc.s("（超限）", " (over limit)") : ""), gradeBad ? WARN : TEXT);
                 int tunnel = (int) Math.round(st.tunnelLength);
                 int bridge = (int) Math.round(st.bridgeLength);
                 if (tunnel > 0) {
                     boolean tunnelBad = shareOverLimit(st.tunnelLength, st);
-                    add(texts, colors, String.format(" · 隧 %d%s", tunnel, tunnelBad ? "（超限）" : ""),
+                    add(texts, colors, String.format(Loc.s(" · 隧 %d%s", " · tunnel %d%s"), tunnel, tunnelBad ? Loc.s("（超限）", " (over limit)") : ""),
                             tunnelBad ? WARN : TEXT);
                 }
                 if (bridge > 0) {
                     boolean bridgeBad = shareOverLimit(st.bridgeLength, st);
-                    add(texts, colors, String.format(" · 桥 %d%s", bridge, bridgeBad ? "（超限）" : ""),
+                    add(texts, colors, String.format(Loc.s(" · 桥 %d%s", " · bridge %d%s"), bridge, bridgeBad ? Loc.s("（超限）", " (over limit)") : ""),
                             bridgeBad ? WARN : TEXT);
                 }
                 if (st.unknownCells > 0) {
-                    add(texts, colors, String.format(" · 未知 %d", st.unknownCells), CAUTION);
+                    add(texts, colors, String.format(Loc.s(" · 未知 %d", " · unknown %d"), st.unknownCells), CAUTION);
                 }
             }
         }
-        add(texts, colors, " · " + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 展开", DIM);
+        add(texts, colors, " · " + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + Loc.s(" 展开", " expand"), DIM);
 
         int x = 6;
         int y = 6;
@@ -414,11 +415,11 @@ public final class PlannerRenderer {
         if (current != null && !Planner.isEditing() && Planner.hoverIndex >= 0
                 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
-            String title = a.name().isEmpty() ? ("点 " + (Planner.hoverIndex + 1)) : a.name();
+            String title = a.name().isEmpty() ? (Loc.s("点 ", "Point ") + (Planner.hoverIndex + 1)) : a.name();
             tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label);
             tooltip(g, font, mouseX + 12, mouseY - 17, "(" + a.x() + ", " + a.y() + ", " + a.z() + ")"
-                    + (a.manual() ? " · 手填" : ""));
-            tooltip(g, font, mouseX + 12, mouseY - 4, "双击改 Y / 名字 / 类型");
+                    + (a.manual() ? Loc.s(" · 手填", " · manual") : ""));
+            tooltip(g, font, mouseX + 12, mouseY - 4, Loc.s("双击改 Y / 名字 / 类型", "Double-click to edit Y / name / type"));
         }
         Alignment.Corner near = nearestCorner(al, view, mouseX, mouseY);
         if (near != null) {
@@ -491,7 +492,7 @@ public final class PlannerRenderer {
         Font font = Minecraft.getInstance().font;
         g.text(font, String.format("%.0f", max), x + 2, y + 1, DIM);
         g.text(font, String.format("%.0f", min), x + 2, y + h - 9, DIM);
-        String legend = "绿 设计 · 蓝 地面";
+        String legend = Loc.s("绿 设计 · 蓝 地面", "green design · blue ground");
         g.text(font, legend, x + w - font.width(legend) - 3, y + 1, DIM);
     }
 
@@ -527,8 +528,8 @@ public final class PlannerRenderer {
         Font font = Minecraft.getInstance().font;
         Anchor a = route.anchors.get(index);
         int row = Planner.editRow();
-        String head = "点 " + (index + 1) + " · " + Planner.editKind().label;
-        String hint = "Tab 换行 · ← → 换类型 · 回车保存 · Esc 取消";
+        String head = Loc.s("点 ", "Point ") + (index + 1) + " · " + Planner.editKind().label;
+        String hint = Loc.s("Tab 换行 · ← → 换类型 · 回车保存 · Esc 取消", "Tab next field · ← → change type · Enter save · Esc cancel");
         int w = Math.max(278, font.width(hint) + 18);
         int h = 86;
         int anchorX = (int) view.guiX(a.x() + 0.5);
@@ -543,8 +544,8 @@ public final class PlannerRenderer {
         panel(g, x, y, w, h);
         g.text(font, head, x + 9, y + 5, TITLE);
         rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "Y", Planner.editYText());
-        rowLine(g, font, x + 9, y + 38, w - 18, row == 1, "名字", Planner.editNameText());
-        rowLine(g, font, x + 9, y + 57, w - 18, row == 2, "类型",
+        rowLine(g, font, x + 9, y + 38, w - 18, row == 1, Loc.s("名字", "Name"), Planner.editNameText());
+        rowLine(g, font, x + 9, y + 57, w - 18, row == 2, Loc.s("类型", "Type"),
                 "◀ " + Planner.editKind().label + " ▶");
         g.text(font, hint, x + 9, y + 74, DIM);
     }
@@ -579,17 +580,17 @@ public final class PlannerRenderer {
         int x = Math.max(4, (view.width() - w) / 2);
         int y = Math.max(4, (view.height() - h) / 2);
         panel(g, x, y, w, h);
-        g.text(font, "线路属性", x + 9, y + 5, TITLE);
-        g.text(font, "Tab 换行 · ← → 调色相 · 回车保存 · Esc 取消", x + 62, y + 5, DIM);
+        g.text(font, Loc.s("线路属性", "Route properties"), x + 9, y + 5, TITLE);
+        g.text(font, Loc.s("Tab 换行 · ← → 调色相 · 回车保存 · Esc 取消", "Tab next field · ← → hue · Enter save · Esc cancel"), x + 62, y + 5, DIM);
 
         int row = Planner.routeRow();
-        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "名字", Planner.routeNameText());
+        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, Loc.s("名字", "Name"), Planner.routeNameText());
 
         // 色板：一排 12 个色块
         swatchSize = 16;
         swatchY = y + 40;
         int sx = x + 45;
-        g.text(font, "色板", x + 9, swatchY + 4, row == 1 ? ACCENT : DIM);
+        g.text(font, Loc.s("色板", "Swatches"), x + 9, swatchY + 4, row == 1 ? ACCENT : DIM);
         for (int i = 0; i < SWATCH_X.length; i++) {
             SWATCH_X[i] = sx + i * (swatchSize + 3);
             int color = 0xFF000000 | Planner.COLOR_PRESETS[i];
@@ -613,7 +614,7 @@ public final class PlannerRenderer {
             int color = fromHsb(i / (float) hueW, Math.max(0.55f, hsb[1]), Math.max(0.65f, hsb[2]));
             g.fill(hueX + i, hueY, hueX + i + 1, hueY + hueH, 0xFF000000 | color);
         }
-        g.text(font, "色相", x + 9, hueY, row == 1 ? ACCENT : DIM);
+        g.text(font, Loc.s("色相", "Hue"), x + 9, hueY, row == 1 ? ACCENT : DIM);
         float[] now = toHsb(Planner.routeColor());
         int marker = hueX + Math.round(now[0] * (hueW - 1));
         g.fill(marker - 1, hueY - 2, marker + 2, hueY + hueH + 2, 0xFFFFFFFF);

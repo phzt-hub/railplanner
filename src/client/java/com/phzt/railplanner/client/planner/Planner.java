@@ -333,7 +333,8 @@ public final class Planner {
     }
 
     public static RailRoute newRoute() {
-        RailRoute r = new RailRoute(UUID.randomUUID().toString(), "线 " + (routes.size() + 1),
+        RailRoute r = new RailRoute(UUID.randomUUID().toString(),
+                com.phzt.railplanner.client.Loc.s("线 ", "Line ") + (routes.size() + 1),
                 PALETTE[routes.size() % PALETTE.length]);
         routes.add(r);
         current = r;

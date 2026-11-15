@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.config;
 
+import com.phzt.railplanner.client.Loc;
 import com.mojang.blaze3d.Blaze3D;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.planner.Planner;
@@ -179,7 +180,7 @@ public class RailConfigScreen extends Screen {
         this.restartButton = this.addRenderableWidget(Button.builder(labelRestart(), b -> {
             LOG.info("退出游戏（待应用的新版本：{}）", Updater.version());
             if (!Updater.quitGame()) {
-                b.setMessage(Component.literal("退出失败，请手动关掉游戏"));
+                b.setMessage(Component.literal(Loc.s("退出失败，请手动关掉游戏", "Quit failed — close the game manually")));
             }
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
@@ -246,12 +247,12 @@ public class RailConfigScreen extends Screen {
 
         y += 12;
         if (y < this.height - 20) {
-            g.text(this.font, Component.literal("同步：" + syncLine()), leftX, y, 0xFF9AA4AE);
+            g.text(this.font, Component.literal(Loc.s("同步：", "Sync: ") + syncLine()), leftX, y, 0xFF9AA4AE);
         }
 
         y += 12;
         if (y < this.height - 20) {
-            g.text(this.font, Component.literal("更新：" + Updater.statusText()), leftX, y,
+            g.text(this.font, Component.literal(Loc.s("更新：", "Updates: ") + Updater.statusText()), leftX, y,
                     Updater.state() == Updater.State.FAILED ? 0xFFFF6E6E : 0xFF9AA4AE);
         }
 
@@ -265,7 +266,7 @@ public class RailConfigScreen extends Screen {
 
         y += 12;
         if (y < this.height - 20) {
-            g.text(this.font, Component.literal("停用后只剩设置页这一键，其余按键与鼠标操作都不响应"), leftX, y,
+            g.text(this.font, Component.literal(Loc.s("停用后只剩设置页这一键，其余按键与鼠标操作都不响应", "Disabled: only the settings key stays alive, every other key and mouse action is ignored")), leftX, y,
                     0xFF8A949E);
         }
 
@@ -313,26 +314,26 @@ public class RailConfigScreen extends Screen {
     }
 
     private static Component labelAutoUpdate() {
-        return Component.literal(RailConfig.get().autoUpdate ? "自动下载更新：开" : "自动下载更新：关");
+        return Component.literal(RailConfig.get().autoUpdate ? Loc.s("自动下载更新：开", "Auto-download updates: on") : Loc.s("自动下载更新：关", "Auto-download updates: off"));
     }
 
     private static Component labelHotkeys() {
-        return Component.literal(RailConfig.get().hotkeysOff ? "停用全部快捷键：开" : "停用全部快捷键：关");
+        return Component.literal(RailConfig.get().hotkeysOff ? Loc.s("停用全部快捷键：开", "Disable all hotkeys: on") : Loc.s("停用全部快捷键：关", "Disable all hotkeys: off"));
     }
 
     private static Component labelSync() {
-        return Component.literal(RailConfig.get().syncEnabled ? "同步到服务端：开" : "同步到服务端：关");
+        return Component.literal(RailConfig.get().syncEnabled ? Loc.s("同步到服务端：开", "Server sync: on") : Loc.s("同步到服务端：关", "Server sync: off"));
     }
 
     private static String syncLine() {
         String key = SyncClient.key();
-        String where = key == null || key.isEmpty() ? "" : "（" + key + "）";
+        String where = key == null || key.isEmpty() ? "" : Loc.s("（", " (") + key + Loc.s("）", ")");
         return SyncClient.hudText() + where;
     }
 
     private static Component labelInstall() {
         if (Updater.installed()) {
-            return Component.literal("已装好 " + Updater.version() + "，待重启");
+            return Component.literal(Loc.s("已装好 ", "Installed ") + Updater.version() + Loc.s("，待重启", " — restart to apply"));
         }
         if (Updater.downloading()) {
             return Component.literal("正在下载…");
@@ -341,11 +342,11 @@ public class RailConfigScreen extends Screen {
         if (UpdateChecker.isNewer() && latest != null && !latest.isEmpty()) {
             return Component.literal("下载并安装 " + latest);
         }
-        return Component.literal("下载并安装（已是最新）");
+        return Component.literal(Loc.s("下载并安装（已是最新）", "Up to date"));
     }
 
     private static Component labelRestart() {
-        return Component.literal(Updater.installed() ? "退出游戏以应用新版本" : "退出游戏");
+        return Component.literal(Updater.installed() ? Loc.s("退出游戏以应用新版本", "Quit to apply the update") : Loc.s("退出游戏", "Quit Game"));
     }
 
     private static Component labelLock() {
