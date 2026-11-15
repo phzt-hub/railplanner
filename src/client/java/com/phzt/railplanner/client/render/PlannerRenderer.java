@@ -288,7 +288,9 @@ public final class PlannerRenderer {
     private static void drawHover(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY, RailRoute current) {
         Font font = Minecraft.getInstance().font;
         Alignment al = current == null ? null : current.alignment();
-        if (current != null && Planner.hoverIndex >= 0 && Planner.hoverIndex < current.anchors.size()) {
+        // 正在改 Y 的时候不弹顶点提示：两个框会叠在一起，数字被坐标盖住。
+        if (current != null && !Planner.isEditingY() && Planner.hoverIndex >= 0
+                && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
             tooltip(g, font, mouseX + 12, mouseY - 17, "点 " + (Planner.hoverIndex + 1) + "  ("
                     + a.x() + ", " + a.y() + ", " + a.z() + ")");

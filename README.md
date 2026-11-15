@@ -14,13 +14,13 @@
 - **双端**：服务端不装就是纯本地；装了之后按 UUID 分玩家在服务端存一份，本地照样保留，两边都改过时逐条问你要留哪边
 - 客户端**必须装 Xaero's World Map ≥ 1.47**；服务端只需要 Fabric API，不需要 Xaero
 - 不修改、不重打包 Xaero 的任何代码，只用 mixin 挂进它的地图界面
-- 当前版本 **0.7.0**
+- 当前版本 **0.7.1**
 
 ![在地图上选线](docs/screenshot.png)
 
 ## 装
 
-**客户端**：Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**，把 `railplanner-0.7.0.jar` 丢进 `mods/`；Mod Menu 可选（不装也能用，按 `U` 开设置页）。
+**客户端**：Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**，把 `railplanner-0.7.1.jar` 丢进 `mods/`；Mod Menu 可选（不装也能用，按 `U` 开设置页）。
 
 **服务端（可选）**：同一个 jar 丢进服务端的 `mods/`，不用改任何配置。服务端只认 Fabric API——**不需要 Xaero，也不需要任何客户端模组**。没装也照样能进服，只是数据只留在本地。
 
@@ -74,7 +74,7 @@
 ./gradlew25 build          # 不要用 ./gradlew：全局 ~/.gradle/gradle.properties 把 JVM 钉在 java-21
 ```
 
-产物：`build/libs/railplanner-0.7.0.jar`。
+产物：`build/libs/railplanner-0.7.1.jar`。
 
 自检：`./tools/geom-check.sh`（圆曲线参数与像素化连续性）、`./tools/vertical-check.sh`（点钉住、限坡、直线兜底）、`./tools/version-check.sh`（版本号比较），都不启游戏。
 
