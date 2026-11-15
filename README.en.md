@@ -4,6 +4,14 @@
 
 A railway alignment tool that lives inside **Xaero's World Map**: click a few times on the map to draw the line, and the mod rounds the polyline into "tangent — circular curve — tangent" the way railway engineering does it, rasterises it onto blocks to get a running line you can actually lay, and reports length, grade, tunnels/bridges, materials and minecart travel time.
 
+> **⚠️ Up front: this is not a survival mod.**
+>
+> It serves exactly one purpose — building a railway in Minecraft that would survive a real-world engineering review: design grade, curve radius, tunnel depth, bridges, the vertical profile. If you're playing survival and just want a minecart to carry you from A to B, **you don't need it, and we don't recommend it.**
+>
+> It will not get your minecart there faster, and it will not save you a single block of digging. What it will do is make you spend an afternoon arguing with yourself about whether 12‰ is too steep, then drag the whole line back and redraw it; make you work out that a full run takes 4 minutes and then redraw a third of the route to shave 20 seconds; make you press `R` on the same line until you forget what you were adjusting.
+>
+> Your time is yours to waste. But this thing can genuinely turn a weekend into a longitudinal profile — decide before you install.
+
 Close the map when you're done and the line still stands in the **3D world**: one design-elevation line, one terrain line, and tunnels and bridges fenced off with translucent faces over the volume that "must be dug / must be bridged" — tunnels blue, bridges orange. One walk along the route and you know where to dig and where to build. While editing, every point you clicked is marked too; lock them with `L` and a slip of the hand can't drag one out of place.
 
 Every point you click also carries a **Y (elevation)**: by default it's the height of the highest block in that column, and **double-clicking a vertex** lets you change it — the same box also gives the point a name and a kind (station, curve control point, tunnel portal, bridge, signal, plain), each drawn as its own shape on the map and in the world. A line's own name and colour live one double-click away on the panel's name row (12-colour swatches plus a hue bar, or plain RGB); and to add a point in the middle of a line that's already drawn, **Ctrl + click** on it.
