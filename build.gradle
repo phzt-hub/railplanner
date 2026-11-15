@@ -32,6 +32,13 @@ loom {
 			programArgs '--quickPlaySingleplayer', 'railplanner_test', '--width', '1440', '--height', '900'
 			runDir "run"
 		}
+		// 联机联调用：直接连本机那台离线测试服（mc-test-263，25599）
+		clientMp {
+			client()
+			name = "Client (multiplayer 25599)"
+			programArgs '--username', 'rp_test', '--quickPlayMultiplayer', '127.0.0.1:25599', '--width', '1440', '--height', '900'
+			runDir "run"
+		}
 	}
 }
 

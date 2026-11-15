@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.update;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.phzt.railplanner.client.config.RailConfig;
@@ -79,6 +80,11 @@ public final class UpdateChecker {
 
     public static Status status() {
         return status;
+    }
+
+    /** 线上那份比自己新。 */
+    public static boolean isNewer() {
+        return status == Status.NEWER;
     }
 
     public static String detail() {
@@ -200,7 +206,10 @@ public final class UpdateChecker {
                 String url = release.has("html_url") ? release.get("html_url").getAsString() : RELEASES_PAGE;
                 cfg.latestVersion = tag;
                 cfg.latestUrl = url;
+                readAsset(release, cfg);
                 evaluate(tag, url, current);
+                // 有新版本且开了自动更新：后台下载、校验、替换，然后设置页上会多出「立即重启」
+                Updater.maybeAuto();
             } catch (RuntimeException e) {
                 status = Status.FAILED;
                 detail = "响应不是合法 JSON";
@@ -224,6 +233,31 @@ public final class UpdateChecker {
         cfg.save();
         LOG.info("检查完成：HTTP {}，线上 {}，状态 {} {}", code, cfg.latestVersion,
                 status, detail.isEmpty() ? "" : "— " + detail);
+    }
+
+    /** 从 release 的 assets 里挑出模组 jar，记下地址、大小和 sha256。 */
+    private static void readAsset(JsonObject release, RailConfig cfg) {
+        cfg.pendingAssetUrl = "";
+        cfg.pendingSha256 = "";
+        cfg.pendingSize = 0;
+        if (!release.has("assets") || !release.get("assets").isJsonArray()) {
+            return;
+        }
+        for (JsonElement element : release.getAsJsonArray("assets")) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+            JsonObject asset = element.getAsJsonObject();
+            String name = asset.has("name") ? asset.get("name").getAsString() : "";
+            if (!name.startsWith("railplanner") || !name.endsWith(".jar")) {
+                continue;
+            }
+            cfg.pendingAssetUrl = asset.has("browser_download_url")
+                    ? asset.get("browser_download_url").getAsString() : "";
+            cfg.pendingSha256 = asset.has("digest") ? asset.get("digest").getAsString() : "";
+            cfg.pendingSize = asset.has("size") ? asset.get("size").getAsLong() : 0;
+            return;
+        }
     }
 
     private static void evaluate(String tag, String url, String current) {

@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,18 @@ public final class RailConfig {
     public boolean worldAnchors = true;
     /** 锁住已选的点：左键按住不再拖动，免得误触把线扯歪（按 L 切换）。 */
     public boolean anchorLock;
+    /** 和服务端同步：服务端装了本模组才生效，关掉就纯本地。 */
+    public boolean syncEnabled = true;
+    /** 已经提示过「服务端没装」的服务器，免得每次进服都在聊天栏刷一遍。 */
+    public List<String> noModNotified = new ArrayList<>();
+    /** 查到新版本就自动下载、校验、替换 mods 里的 jar（重启后生效）。 */
+    public boolean autoUpdate = true;
+    /** 线上版本 jar 的下载地址（从 release 的 assets 里挑出来的）。 */
+    public String pendingAssetUrl = "";
+    /** 线上版本的 sha256，形如 sha256:xxxx。 */
+    public String pendingSha256 = "";
+    /** 线上版本的字节数，下载完用来挡掉截断。 */
+    public long pendingSize;
 
     private static RailConfig instance = new RailConfig();
 
@@ -86,6 +100,9 @@ public final class RailConfig {
         }
         if (latestUrl == null) {
             latestUrl = "";
+        }
+        if (noModNotified == null) {
+            noModNotified = new ArrayList<>();
         }
         return this;
     }

@@ -8,7 +8,11 @@ import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.model.RouteStore;
 import com.phzt.railplanner.client.render.MapView;
 import com.phzt.railplanner.client.render.PlannerRenderer;
+import com.phzt.railplanner.client.sync.SyncClient;
+import com.phzt.railplanner.client.sync.SyncKeys;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -91,11 +95,12 @@ public final class Planner {
     }
 
     public static void ensureLoaded(MapProcessor mp) {
+        // 世界身份按「主机名（不含端口）/ 存档名」算，同一个服务器的不同端口是同一份数据。
         String id;
         try {
-            id = mp.getCurrentWorldId();
+            id = SyncKeys.of(mc());
         } catch (Throwable t) {
-            id = null;
+            id = "default";
         }
         if (id == null || id.isBlank()) {
             id = "default";
@@ -161,12 +166,69 @@ public final class Planner {
         if (current != null) {
             current.invalidate();
         }
+        SyncClient.markDirty();
+    }
+
+    private static Minecraft mc() {
+        return Minecraft.getInstance();
+    }
+
+    /** 同步用的读数：这个世界的数据（界面开着就用内存里这份，没开就读盘）。 */
+    public static List<RailRoute> routesFor(String key) {
+        if (key != null && key.equals(worldId)) {
+            return new ArrayList<>(routes);
+        }
+        return RouteStore.load(key);
+    }
+
+    /**
+     * 把同步合并之后的结果装回本地：内存里那份就地改（正在编辑的那条线对象不能换掉），
+     * 然后把同一个结果写盘。
+     */
+    public static void applySynced(String key, List<RailRoute> merged) {
+        RouteStore.save(key, merged);
+        if (key == null || !key.equals(worldId)) {
+            return;
+        }
+        Map<String, RailRoute> want = new LinkedHashMap<>();
+        for (RailRoute r : merged) {
+            want.put(r.id, r);
+        }
+        List<RailRoute> out = new ArrayList<>();
+        for (RailRoute existing : routes) {
+            RailRoute fresh = want.remove(existing.id);
+            if (fresh != null) {
+                existing.name = fresh.name;
+                existing.color = fresh.color;
+                existing.radius = fresh.radius;
+                existing.anchors.clear();
+                existing.anchors.addAll(fresh.anchors);
+                existing.invalidate();
+                out.add(existing);
+            } else if (existing == current && existing.anchors.isEmpty()) {
+                // 正在画、还没落点的那条线不跟着删
+                out.add(existing);
+            }
+        }
+        out.addAll(want.values());
+        routes.clear();
+        routes.addAll(out);
+        if (current != null && !routes.contains(current)) {
+            current = null;
+        }
+        if (displayed == null || !routes.contains(displayed)) {
+            displayed = routes.isEmpty() ? null : routes.get(0);
+        }
+        stats = null;
+        statsDirty = true;
+        dirty = false;
     }
 
     public static void saveNow() {
         RouteStore.save(worldId, routes);
         dirty = false;
         tickCounter = 0;
+        SyncClient.markDirty();
     }
 
     public static RailRoute newRoute() {

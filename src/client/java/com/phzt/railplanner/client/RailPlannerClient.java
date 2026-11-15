@@ -5,9 +5,13 @@ import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.config.RailConfigScreen;
 import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.render.WorldHud;
+import com.phzt.railplanner.client.sync.SyncClient;
 import com.phzt.railplanner.client.update.UpdateChecker;
+import com.phzt.railplanner.sync.Payloads;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.KeyMapping;
@@ -74,6 +78,10 @@ public final class RailPlannerClient implements ClientModInitializer {
         }
         RailConfig.load();
         UpdateChecker.init();
+        // 同步：服务端回包的接收器 + 进退服两个钩子
+        ClientPlayNetworking.registerGlobalReceiver(Payloads.S2C.TYPE, SyncClient::handle);
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> SyncClient.onJoin(client));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> SyncClient.onDisconnect());
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("railplanner", "status"),
                 (graphics, deltaTracker) -> WorldHud.render(graphics));
 
@@ -114,6 +122,7 @@ public final class RailPlannerClient implements ClientModInitializer {
                 }
             }
             Planner.tick(client);
+            SyncClient.tick(client);
             UpdateChecker.tick(client);
         });
     }
