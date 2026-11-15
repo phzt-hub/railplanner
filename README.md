@@ -75,9 +75,10 @@
 ./tools/fetch-xaero.sh     # 下载编译用的 Xaero 26.3 jar（不进仓库：Xaero 是 All Rights Reserved）
 ./tools/fetch-modmenu.sh   # 下载编译用的 Mod Menu（可选依赖，同样不进仓库）
 ./gradlew25 build          # 不要用 ./gradlew：全局 ~/.gradle/gradle.properties 把 JVM 钉在 java-21
+./tools/make-icon.py       # 只改图标时跑：重新生成 assets/railplanner/icon.png（128×128，要 Pillow + numpy）
 ```
 
-产物：`build/libs/railplanner-0.7.1.jar`。
+产物：`build/libs/railplanner-0.8.0.jar`。
 
 自检：`./tools/geom-check.sh`（圆曲线参数与像素化连续性）、`./tools/vertical-check.sh`（点钉住、限坡、直线兜底）、`./tools/version-check.sh`（版本号比较），都不启游戏。
 

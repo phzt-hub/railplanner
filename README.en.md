@@ -74,6 +74,7 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 ./tools/fetch-xaero.sh     # downloads the Xaero 26.3 jar used for compiling (not in the repo: Xaero is All Rights Reserved)
 ./tools/fetch-modmenu.sh   # downloads Mod Menu for compiling (optional dependency, also not in the repo)
 ./gradlew25 build          # do not use ./gradlew: the global ~/.gradle/gradle.properties pins the JVM to java-21
+./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
 Output: `build/libs/railplanner-0.8.0.jar`.

@@ -5,7 +5,13 @@
 	"name": "Rail Planner",
 	"description": "在 Xaero 世界地图上直接选线、画铁路，按铁路工程口径把折线圆角化成切线—圆曲线—切线，像素化到方块，并统计长度、坡度、隧道/桥、材料与行车时间；关掉地图后同一条线会立在三维世界里（设计标高、地形、填挖立柱，隧道蓝桥橙，V 开关 X 穿山）。装到服务端后按 UUID 分玩家保存，本地保留一份、服务端存一份，两边不一致时逐条问你要留哪边。",
 	"authors": ["phzt"],
+	"contact": {
+		"homepage": "https://github.com/phzt-hub/railplanner",
+		"sources": "https://github.com/phzt-hub/railplanner",
+		"issues": "https://github.com/phzt-hub/railplanner/issues"
+	},
 	"license": "MIT",
+	"icon": "assets/railplanner/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": ["com.phzt.railplanner.RailPlanner"],

@@ -5,3 +5,5 @@ libs/*.jar
 !libs/.gitkeep
 *.iml
 .idea/
+__pycache__/
+*.pyc
