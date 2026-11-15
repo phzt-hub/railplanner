@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"id": "railplanner",
+	"version": "${version}",
+	"name": "Rail Planner",
+	"description": "在 Xaero 世界地图上直接选线、画铁路，按铁路工程口径把折线圆角化成切线—圆曲线—切线，像素化到方块，并统计长度、坡度、隧道/桥、材料与行车时间。",
+	"authors": ["phzt"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["com.phzt.railplanner.client.RailPlannerClient"]
+	},
+	"mixins": [
+		{
+			"config": "railplanner.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*",
+		"xaeroworldmap": ">=1.47"
+	}
+}
