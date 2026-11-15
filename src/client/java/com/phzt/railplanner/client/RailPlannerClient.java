@@ -92,7 +92,13 @@ public final class RailPlannerClient implements ClientModInitializer {
             int worldToggles = drain(WORLD_TOGGLE);
             int worldXrays = drain(WORLD_XRAY);
             int lockToggles = drain(LOCK);
-            if (client.gui.screen() == null) {
+            // 停用期间除了设置页那个键，别的都不响应；计数照样清掉，免得恢复时一次性全冒出来。
+            boolean hotkeysOff = RailConfig.get().hotkeysOff;
+            if (client.gui.screen() == null && settings > 0) {
+                // 设置页是唯一的例外：不然停用之后就没法把它开回来了。
+                LOG.info("打开设置页（按键 {}）", keyName(SETTINGS));
+                client.gui.setScreen(new RailConfigScreen(null));
+            } else if (!hotkeysOff && client.gui.screen() == null) {
                 if (lockToggles > 0) {
                     Planner.toggleLock();
                 }
@@ -115,10 +121,6 @@ public final class RailPlannerClient implements ClientModInitializer {
                 if (toggles > 0) {
                     Planner.toggle(client);
                     LOG.info("规划模式 → {}（按键 {}）", Planner.isActive() ? "开" : "关", keyName(TOGGLE));
-                }
-                if (settings > 0) {
-                    LOG.info("打开设置页（按键 {}）", keyName(SETTINGS));
-                    client.gui.setScreen(new RailConfigScreen(null));
                 }
             }
             Planner.tick(client);

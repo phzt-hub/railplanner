@@ -48,6 +48,12 @@ public final class RailConfig {
     public boolean worldAnchors = true;
     /** 锁住已选的点：左键按住不再拖动，免得误触把线扯歪（按 L 切换）。 */
     public boolean anchorLock;
+
+    /**
+     * 停用本模组的全部快捷键与鼠标操作（防和其他模组抢键）。
+     * 只剩「打开设置页」那个键还能用——否则关掉之后就再也开不回来了。
+     */
+    public boolean hotkeysOff;
     /** 和服务端同步：服务端装了本模组才生效，关掉就纯本地。 */
     public boolean syncEnabled = true;
     /** 已经提示过「服务端没装」的服务器，免得每次进服都在聊天栏刷一遍。 */

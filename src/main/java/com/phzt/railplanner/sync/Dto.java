@@ -18,8 +18,12 @@ import java.util.Map;
  */
 public final class Dto {
 
-    /** 协议版本。客户端和服务端对不上就不同步，各留各的本地数据。 */
-    public static final int PROTO = 1;
+    /**
+     * 协议版本。客户端和服务端对不上就不同步，各留各的本地数据。
+     *
+     * <p>2：锚点带上 Y 和标记位（{@code [x, z, y, flags]}），0.6.x 的 [x, z] 读进来当「还没解析」。</p>
+     */
+    public static final int PROTO = 2;
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final Gson COMPACT = new Gson();

@@ -1,0 +1,16 @@
+{
+  "id": "railplanner_updater",
+  "version": "1.0.0",
+  "name": "RailPlannerUpdater",
+  "description": {
+    "en_us": "Keep the Rail Planner server mod on the latest GitHub release; swap the jar and restart the server.",
+    "zh_cn": "让服务端的 Rail Planner 模组自动跟到 GitHub 上的最新版本：换 jar、按开关重启服务端。"
+  },
+  "author": [
+    "phzt"
+  ],
+  "link": "https://github.com/phzt-hub/railplanner",
+  "dependencies": {
+    "mcdreforged": ">=2.0.0"
+  }
+}

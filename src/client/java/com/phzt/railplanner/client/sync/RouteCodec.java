@@ -22,7 +22,7 @@ public final class RouteCodec {
         d.updatedAt = System.currentTimeMillis();
         d.anchors = new ArrayList<>();
         for (Anchor a : r.anchors) {
-            d.anchors.add(new int[]{a.x(), a.z()});
+            d.anchors.add(a.toArray());
         }
         return d;
     }
@@ -32,8 +32,9 @@ public final class RouteCodec {
         r.radius = d.radius > 0 ? d.radius : 24.0;
         if (d.anchors != null) {
             for (int[] a : d.anchors) {
-                if (a != null && a.length >= 2) {
-                    r.anchors.add(new Anchor(a[0], a[1]));
+                Anchor anchor = Anchor.fromArray(a);
+                if (anchor != null) {
+                    r.anchors.add(anchor);
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.planner;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
@@ -10,6 +11,7 @@ import com.phzt.railplanner.client.render.MapView;
 import com.phzt.railplanner.client.render.PlannerRenderer;
 import com.phzt.railplanner.client.sync.SyncClient;
 import com.phzt.railplanner.client.sync.SyncKeys;
+import com.phzt.railplanner.client.terrain.XaeroTerrain;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,6 +21,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +46,22 @@ public final class Planner {
     private static RailRoute displayed;
     public static int dragIndex = -1;
     public static int hoverIndex = -1;
+
+    /** 正在改 Y 的那个点；-1 表示编辑框没开。 */
+    private static int yEditIndex = -1;
+    private static String yEditText = "";
+    /** 编辑框刚打开时是「全选」状态：敲第一个数字直接换掉原来的值。 */
+    private static boolean yEditReplace;
+    /** 这一版的按键是 SDL 扫描码：数字行 1..9 是 30..38、0 是 39；小键盘 1..9 是 89..97、0 是 98，回车 88。 */
+    private static final int SCAN_1 = 30;
+    private static final int SCAN_9 = 38;
+    private static final int SCAN_KP_1 = 89;
+    private static final int SCAN_KP_9 = 97;
+    private static final int SCAN_KP_0 = 98;
+    private static final int SCAN_KP_ENTER = 88;
+
+    /** 每 40 帧查一次「还没探明的点」，探到了就把回落值换掉。 */
+    private static int resolveTick = 39;
 
     /** 地图里那行提示的正文与到期时间。 */
     private static String notice = "";
@@ -324,7 +343,10 @@ public final class Planner {
         if (current == null) {
             newRoute();
         }
-        current.anchors.add(new Anchor(bx, bz));
+        Anchor added = anchorAt(mapProcessor(), bx, bz);
+        current.anchors.add(added);
+        LOG.info("加点 {},{} → Y {}{}", added.x(), added.z(), added.y(),
+                added.manual() ? "（手填）" : (added.resolved() ? "" : "（地面没探明，先用 64）"));
         markDirty();
     }
 
@@ -333,6 +355,9 @@ public final class Planner {
         lastMouseY = mouseY;
         if (mp != null) {
             ensureLoaded(mp);
+            if (++resolveTick % 40 == 0) {
+                resolveAnchors(mp);
+            }
         }
         if (active && dragIndex >= 0 && current != null && dragIndex < current.anchors.size()
                 && !RailConfig.get().anchorLock) {
@@ -340,7 +365,10 @@ public final class Planner {
             int bz = (int) Math.floor(view.worldZ(mouseY));
             Anchor old = current.anchors.get(dragIndex);
             if (old.x() != bx || old.z() != bz) {
-                current.anchors.set(dragIndex, new Anchor(bx, bz));
+                // 手填过 Y 的点只换位置、标高留着；其余的点在新的一列上重新取地面高度。
+                current.anchors.set(dragIndex, old.manual()
+                        ? Anchor.manual(bx, bz, old.y())
+                        : anchorAt(mp, bx, bz));
                 markDirty();
             }
         }
@@ -353,12 +381,21 @@ public final class Planner {
         PlannerRenderer.render(g, view, mouseX, mouseY, routes, current, hoverIndex, dragIndex);
     }
 
-    public static boolean onClick(MapView view, int button, double gx, double gy) {
-        if (!active) {
+    public static boolean onClick(MapView view, int button, double gx, double gy, boolean doubleClick) {
+        if (RailConfig.get().hotkeysOff || !active) {
             return false;
+        }
+        if (isEditingY()) {
+            // 编辑框开着时点地图 = 确认框里这个数，别顺手又加一个点。
+            commitYEdit();
+            return true;
         }
         int hit = hitVertex(view, current, gx, gy);
         if (button == 1) {
+            if (doubleClick && hit >= 0) {
+                openYEditor(hit);
+                return true;
+            }
             if (hit >= 0) {
                 if (RailConfig.get().anchorLock) {
                     toast("点已锁定，拖不动（" + RailPlannerClient.keyName(RailPlannerClient.LOCK) + " 解锁）");
@@ -383,7 +420,7 @@ public final class Planner {
     }
 
     public static boolean onRelease(MapView view, int button, double gx, double gy) {
-        if (!active) {
+        if (RailConfig.get().hotkeysOff || !active) {
             return false;
         }
         if (button != 1) {
@@ -437,6 +474,12 @@ public final class Planner {
      * 界面上显示的字（HUD 提示）也读同一份绑定。
      */
     public static boolean onKey(KeyEvent event, MapView view, MapProcessor mp) {
+        if (RailConfig.get().hotkeysOff) {
+            return false;
+        }
+        if (isEditingY()) {
+            return editKey(event);
+        }
         if (!active) {
             // 地图里再按一次「规划模式」键可以重新进入
             if (RailPlannerClient.TOGGLE.matches(event)) {
@@ -510,6 +553,195 @@ public final class Planner {
         return false;
     }
 
+    /**
+     * 设置页里拨「停用全部快捷键」时调一次：收掉规划模式和编辑框，并在聊天栏说一句。
+     *
+     * <p>停用期间只剩「打开设置页」那个键还活着——不然玩家就再也进不去设置页把它关回来了。
+     * 那是唯一的例外，其余按键和鼠标操作一起停。</p>
+     */
+    public static void notifyHotkeysOff() {
+        boolean off = RailConfig.get().hotkeysOff;
+        if (off) {
+            cancelYEdit();
+            active = false;
+            dragIndex = -1;
+            hoverIndex = -1;
+            clickPending = false;
+        }
+        Minecraft mc = mc();
+        if (mc.gui != null) {
+            mc.gui.chatListener().handleSystemMessage(Component.literal(off
+                    ? "[Rail Planner] 已停用本模组的全部快捷键与鼠标操作。要改回来：打开设置页（"
+                            + RailPlannerClient.keyName(RailPlannerClient.SETTINGS) + "）把开关关掉。"
+                    : "[Rail Planner] 快捷键已恢复。").withStyle(ChatFormatting.GRAY), false);
+        }
+        LOG.info("停用全部快捷键 → {}", off ? "开" : "关");
+    }
+
+    // ---------------------------------------------------------------- 点的 Y
+
+    /**
+     * 按 (x, z) 现取一个点：那一列最高方块的高度（不含树叶的地表）就是它的默认标高。
+     * 地图数据还没探到、区块也没加载，就先放回落值 64，等探明了由 {@link #resolveAnchors} 换上。
+     */
+    public static Anchor anchorAt(MapProcessor mp, int x, int z) {
+        int h = RouteStats.height(mp, x, z);
+        return h == XaeroTerrain.UNKNOWN ? new Anchor(x, z) : Anchor.auto(x, z, h);
+    }
+
+    /**
+     * 「存下来时还没探明」的点：等地图数据到了，把回落值换成那一列真实的地面高度。
+     * 手填过的点和已经解析过的点都不动。
+     */
+    public static void resolveAnchors(MapProcessor mp) {
+        if (mp == null) {
+            return;
+        }
+        boolean changed = false;
+        for (RailRoute route : routes) {
+            for (int i = 0; i < route.anchors.size(); i++) {
+                Anchor a = route.anchors.get(i);
+                if (a.manual() || a.resolved()) {
+                    continue;
+                }
+                int h = RouteStats.height(mp, a.x(), a.z());
+                if (h == XaeroTerrain.UNKNOWN) {
+                    continue;
+                }
+                route.anchors.set(i, Anchor.auto(a.x(), a.z(), h));
+                route.invalidate();
+                changed = true;
+            }
+        }
+        if (changed) {
+            markDirty();
+            LOG.info("点的 Y：探明之后把回落值换成了地面高度");
+        }
+    }
+
+    public static boolean isEditingY() {
+        return yEditIndex >= 0 && current != null && yEditIndex < current.anchors.size();
+    }
+
+    /** 正在编辑的那个点的下标，没开编辑框就是 -1。 */
+    public static int editIndex() {
+        return isEditingY() ? yEditIndex : -1;
+    }
+
+    /** 编辑框里现在的字。 */
+    public static String editText() {
+        return yEditText;
+    }
+
+    private static void openYEditor(int index) {
+        if (current == null || index < 0 || index >= current.anchors.size()) {
+            return;
+        }
+        yEditIndex = index;
+        yEditText = String.valueOf(current.anchors.get(index).y());
+        yEditReplace = true;
+    }
+
+    private static void cancelYEdit() {
+        if (yEditIndex >= 0) {
+            LOG.info("点的 Y：取消编辑");
+        }
+        yEditIndex = -1;
+        yEditText = "";
+        yEditReplace = false;
+    }
+
+    /** 回车 / 点地图别处：把框里的数写进这个点。空着或者不是整数就当没填。 */
+    private static void commitYEdit() {
+        int index = yEditIndex;
+        yEditIndex = -1;
+        yEditReplace = false;
+        if (current == null || index < 0 || index >= current.anchors.size()) {
+            yEditText = "";
+            return;
+        }
+        String text = yEditText.trim();
+        yEditText = "";
+        if (text.isEmpty() || "-".equals(text)) {
+            return;
+        }
+        int value;
+        try {
+            value = Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        value = Math.max(-1024, Math.min(1024, value));
+        Anchor a = current.anchors.get(index);
+        if (a.manual() && a.y() == value) {
+            return;
+        }
+        current.anchors.set(index, Anchor.manual(a.x(), a.z(), value));
+        markDirty();
+        LOG.info("点的 Y：点 {} 设成 {}（原 {}）", index + 1, value, a.y());
+    }
+
+    /**
+     * 编辑框开着时的按键：数字、负号、退格、回车、Esc，其它全吃掉。
+     *
+     * <p>数字走按键而不是 charTyped：这一版原版的字符事件是在 keyPressed 之后才派发的，
+     * 这边一旦把按键吞掉，字符就收不到了。</p>
+     */
+    private static boolean editKey(KeyEvent event) {
+        int key = event.key();
+        int chr = event.keycode();
+        if (key == InputConstants.KEY_ESCAPE) {
+            cancelYEdit();
+            return true;
+        }
+        // 335 = 小键盘回车（GLFW 的 KP_ENTER，原版没有给常量）
+        if (key == InputConstants.KEY_RETURN || key == SCAN_KP_ENTER) {
+            commitYEdit();
+            return true;
+        }
+        if (key == InputConstants.KEY_BACKSPACE) {
+            if (yEditReplace) {
+                yEditText = "";
+                yEditReplace = false;
+            } else if (!yEditText.isEmpty()) {
+                yEditText = yEditText.substring(0, yEditText.length() - 1);
+            }
+            return true;
+        }
+        // 数字：优先用字符码（这一版的 KeyEvent.keycode() 就是可打印键的字符码），
+        // 没有字符码（小键盘等）再按扫描码映射。
+        char c = 0;
+        if (chr >= '0' && chr <= '9') {
+            c = (char) chr;
+        } else if (chr == '-') {
+            c = '-';
+        } else if (key >= SCAN_1 && key <= SCAN_9) {
+            c = (char) ('1' + (key - SCAN_1));
+        } else if (key == InputConstants.KEY_0) {
+            c = '0';
+        } else if (key >= SCAN_KP_1 && key <= SCAN_KP_9) {
+            c = (char) ('1' + (key - SCAN_KP_1));
+        } else if (key == SCAN_KP_0) {
+            c = '0';
+        } else if (key == InputConstants.KEY_MINUS) {
+            c = '-';
+        }
+        if (c == '-' && !yEditReplace && !yEditText.isEmpty()) {
+            // 负号只放在最前面：已经输了数字就忽略它
+            c = 0;
+        }
+        if (c != 0) {
+            if (yEditReplace) {
+                yEditText = "";
+                yEditReplace = false;
+            }
+            if (yEditText.length() < 6) {
+                yEditText = yEditText + c;
+            }
+        }
+        return true;
+    }
+
     private static String floatText(double v) {
         return String.format("%.1f", v);
     }
@@ -531,7 +763,8 @@ public final class Planner {
         }
         current.anchors.remove(current.anchors.size() - 1);
         for (Anchor a : path) {
-            current.anchors.add(a);
+            // 自动选线生出来的点也得带 Y：起点沿用原来那个点，其余按新的一列取地面高度。
+            current.anchors.add(a.equals(start) ? start : (a.manual() ? a : anchorAt(mp, a.x(), a.z())));
         }
         markDirty();
     }

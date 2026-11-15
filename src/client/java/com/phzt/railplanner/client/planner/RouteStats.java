@@ -1,6 +1,8 @@
 package com.phzt.railplanner.client.planner;
 
 import com.phzt.railplanner.client.geom.BlockPath;
+import com.phzt.railplanner.client.geom.VerticalProfile;
+import com.phzt.railplanner.client.model.Anchor;
 import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.terrain.XaeroTerrain;
 import net.minecraft.client.Minecraft;
@@ -97,6 +99,8 @@ public final class RouteStats {
         }
 
         float[] design = designProfile(terrain, dist, MAX_DESIGN_GRADE / 100.0);
+        // 点过的每个点都钉着自己的 Y：纵断面必须从这些高度上过。
+        pinAnchors(route, path, design);
         st.designProfile = design;
 
         for (int i = 1; i < n; i++) {
@@ -152,6 +156,82 @@ public final class RouteStats {
             return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         }
         return XaeroTerrain.UNKNOWN;
+    }
+
+    /**
+     * 把每个点钉在自己的 Y 上。
+     *
+     * <p>规则只有一条：<b>线走到这个点，标高就是它的 Y</b>。两点之间怎么办，分两种情况：</p>
+     * <ul>
+     *   <li><b>这段高差放得进限坡</b>（|ΔY| ≤ 限坡 × 段长）：在「从两头按限坡追出去能到达的范围」
+     *       里贴着地形走——地形平缓时就是原来那条贴地的线，地形起伏时被两头夹住，但绝不超限。</li>
+     *   <li><b>放不进限坡</b>：两头都是硬钉住的，本来就不可能同时满足限坡，于是按两点之间的直线走，
+     *       面板上的「设计最大坡」会标红，告诉玩家这一段在限坡上办不到。</li>
+     * </ul>
+     *
+     * <p>里程一律沿走行线从上一个点往后找（{@link #projectCell}），不回头——环线的另一头常常
+     * 离这个点更近，用全局最近格会把顺序搅乱，两点之间挤出一段近乎垂直的假坡。</p>
+     */
+    private static void pinAnchors(RailRoute route, BlockPath path, float[] design) {
+        int n = design.length;
+        int count = route.anchors.size();
+        if (n < 2 || count == 0) {
+            return;
+        }
+        float[] base = interpolateUnknown(design);
+
+        int[] cell = new int[count];
+        cell[0] = 0;
+        for (int i = 1; i < count; i++) {
+            Anchor prev = route.anchors.get(i - 1);
+            Anchor cur = route.anchors.get(i);
+            double span = Math.hypot(cur.x() - prev.x(), cur.z() - prev.z());
+            cell[i] = projectCell(path, cur, cell[i - 1], (int) Math.ceil(span * 2.0 + 32.0), n);
+        }
+        // 最后一个点就是走行线的终点，直接认末格，免得量化把它挪回去。
+        cell[count - 1] = n - 1;
+
+        // 两个点落在同一格（或者只隔两三格）时不可能是两个标高：后一个把前一个顶掉，
+        // 否则两点之间会算出一段近乎垂直的「假坡」。
+        double[] chain = new double[count];
+        float[] target = new float[count];
+        int pins = 0;
+        for (int i = 0; i < count; i++) {
+            double s = path.chainage[cell[i]];
+            float y = route.anchors.get(i).y();
+            if (pins > 0 && s - chain[pins - 1] < MIN_PIN_GAP) {
+                if (pins == 1 || s > chain[pins - 2] + 1.0E-6) {
+                    chain[pins - 1] = s;
+                    target[pins - 1] = y;
+                }
+                continue;
+            }
+            chain[pins] = s;
+            target[pins] = y;
+            pins++;
+        }
+        VerticalProfile.apply(path.chainage, java.util.Arrays.copyOf(chain, pins),
+                java.util.Arrays.copyOf(target, pins), base, MAX_DESIGN_GRADE / 100.0, design);
+    }
+
+    /** 两个点在线路上离得比这还近（格），就当同一个点，只留后一个。 */
+    private static final double MIN_PIN_GAP = 4.0;
+
+    /** 走行线上离这个点最近的一格，只从 {@code from} 往后找（含窗口上限）。 */
+    private static int projectCell(BlockPath path, Anchor a, int from, int window, int n) {
+        int end = Math.min(n - 1, from + Math.max(8, window));
+        int best = from;
+        long bestD = Long.MAX_VALUE;
+        for (int i = from; i <= end; i++) {
+            long dx = path.xs[i] - a.x();
+            long dz = path.zs[i] - a.z();
+            long d = dx * dx + dz * dz;
+            if (d < bestD) {
+                bestD = d;
+                best = i;
+            }
+        }
+        return best;
     }
 
     /** 限坡纵断面：前向/后向剖切 + 两次平滑，再重新限坡。 */

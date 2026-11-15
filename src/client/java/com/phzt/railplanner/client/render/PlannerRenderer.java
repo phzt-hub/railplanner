@@ -54,10 +54,13 @@ public final class PlannerRenderer {
             }
             drawHover(g, view, mouseX, mouseY, current);
             drawNotice(g, view);
+            drawYEditor(g, view, current);
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
-            badge(g, font, 6, 6, "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
-                    + " 进入规划模式（" + routes.size() + " 条线）");
+            badge(g, font, 6, 6, RailConfig.get().hotkeysOff
+                    ? "铁路选线 · 快捷键已停用，设置页里可恢复（" + routes.size() + " 条线）"
+                    : "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
+                            + " 进入规划模式（" + routes.size() + " 条线）");
         }
     }
 
@@ -168,11 +171,16 @@ public final class PlannerRenderer {
                 }
             }
             if (st != null) {
-                boolean gradeBad = gradeOverLimit(st);
-                add(lines, colors, String.format("地面最大坡 %.1f%%%s · 设计限坡 %.1f%%（%s %s 调）",
-                        st.maxTerrainGradePct, gradeBad ? "（超限）" : "", RouteStats.MAX_DESIGN_GRADE,
+                // 点的 Y 钉住之后，设计坡是玩家自己定的，可能顶到限坡以上：两个坡分开标。
+                boolean terrainBad = gradeOverLimit(st);
+                boolean designBad = st.maxDesignGradePct > RouteStats.MAX_DESIGN_GRADE + 0.05;
+                add(lines, colors, String.format("地面最大坡 %.1f%%%s · 设计最大坡 %.1f%%%s · 限坡 %.1f%%（%s %s 调）",
+                        st.maxTerrainGradePct, terrainBad ? "（超限）" : "",
+                        st.maxDesignGradePct, designBad ? "（超限）" : "",
+                        RouteStats.MAX_DESIGN_GRADE,
                         RailPlannerClient.keyName(RailPlannerClient.GRADE_DOWN),
-                        RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)), gradeBad ? WARN : TEXT);
+                        RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)),
+                        (terrainBad || designBad) ? WARN : TEXT);
                 add(lines, colors, String.format("爬 %d · 降 %d", Math.round(st.climb), Math.round(st.descent)), TEXT);
                 boolean tunnelBad = shareOverLimit(st.tunnelLength, st);
                 boolean bridgeBad = shareOverLimit(st.bridgeLength, st);
@@ -186,7 +194,7 @@ public final class PlannerRenderer {
                         RouteStats.time(st.secondsAt8), RouteStats.time(st.secondsAt4)), TEXT);
             }
         }
-        add(lines, colors, "左键加点/拖顶点 · 右键删点 · "
+        add(lines, colors, "左键加点/拖顶点 · 右键删点 · 双击顶点改 Y · "
                 + RailPlannerClient.keyName(RailPlannerClient.FINISH) + " 完成 · "
                 + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
                 + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
@@ -282,7 +290,9 @@ public final class PlannerRenderer {
         Alignment al = current == null ? null : current.alignment();
         if (current != null && Planner.hoverIndex >= 0 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
-            tooltip(g, font, mouseX + 12, mouseY - 4, "点 " + (Planner.hoverIndex + 1) + "  (" + a.x() + ", " + a.z() + ")");
+            tooltip(g, font, mouseX + 12, mouseY - 17, "点 " + (Planner.hoverIndex + 1) + "  ("
+                    + a.x() + ", " + a.y() + ", " + a.z() + ")");
+            tooltip(g, font, mouseX + 12, mouseY - 4, a.manual() ? "双击改 Y（手填）" : "双击改 Y");
         }
         Alignment.Corner near = nearestCorner(al, view, mouseX, mouseY);
         if (near != null) {
@@ -380,6 +390,38 @@ public final class PlannerRenderer {
             prevY = py;
             hasPrev = true;
         }
+    }
+
+    /** 双击顶点之后浮在旁边的 Y 输入框。 */
+    private static void drawYEditor(GuiGraphicsExtractor g, MapView view, RailRoute route) {
+        int index = Planner.editIndex();
+        if (route == null || index < 0 || index >= route.anchors.size()) {
+            return;
+        }
+        Font font = Minecraft.getInstance().font;
+        Anchor a = route.anchors.get(index);
+        String head = "点 " + (index + 1) + " 的 Y";
+        String value = Planner.editText();
+        String hint = "回车确认 · Esc 取消 · 退格删一个";
+        int w = Math.max(font.width(head), Math.max(font.width(value) + 26, font.width(hint))) + 18;
+        int h = 48;
+        int x = (int) view.guiX(a.x() + 0.5) + 12;
+        int y = (int) view.guiY(a.z() + 0.5) - 20;
+        if (x + w > view.width() - 4) {
+            x = (int) view.guiX(a.x() + 0.5) - w - 12;
+        }
+        x = Math.max(4, x);
+        y = Math.max(4, Math.min(y, view.height() - h - 4));
+        panel(g, x, y, w, h);
+        g.text(font, head, x + 9, y + 6, TITLE);
+        // 输入框：黑底、白字、后面一根一直亮着的竖线当光标
+        int boxTop = y + 19;
+        int boxW = font.width(value) + 12;
+        g.fill(x + 9, boxTop, x + 9 + Math.max(24, boxW), boxTop + 13, 0xCC000000);
+        g.text(font, value, x + 14, boxTop + 3, 0xFFFFFFFF);
+        int caret = x + 14 + font.width(value) + 1;
+        g.fill(caret, boxTop + 3, caret + 1, boxTop + 11, ACCENT);
+        g.text(font, hint, x + 9, y + 35, DIM);
     }
 
     /** 地图中间下方那行一闪而过的提示（「点已锁定，拖不动」之类）。 */

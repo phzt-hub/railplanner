@@ -110,6 +110,15 @@ public class RailConfigScreen extends Screen {
         }).bounds(leftX, left, colW, 20).build());
         left += ROW;
 
+        this.addRenderableWidget(Button.builder(labelHotkeys(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.hotkeysOff = !cfg.hotkeysOff;
+            cfg.save();
+            b.setMessage(labelHotkeys());
+            Planner.notifyHotkeysOff();
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
         this.addRenderableWidget(Button.builder(labelSync(), b -> {
             RailConfig cfg = RailConfig.get();
             cfg.syncEnabled = !cfg.syncEnabled;
@@ -253,6 +262,12 @@ public class RailConfigScreen extends Screen {
             g.text(this.font, keys, leftX, y, HEADER);
         }
 
+        y += 12;
+        if (y < this.height - 20) {
+            g.text(this.font, Component.literal("停用后只剩设置页这一键，其余按键与鼠标操作都不响应"), leftX, y,
+                    0xFF8A949E);
+        }
+
         if (this.height >= 320) {
             Component note = Component.translatable("railplanner.config.note");
             g.text(this.font, note, this.width / 2 - this.font.width(note) / 2, this.height - 26, 0xFF8A949E);
@@ -298,6 +313,10 @@ public class RailConfigScreen extends Screen {
 
     private static Component labelAutoUpdate() {
         return Component.literal(RailConfig.get().autoUpdate ? "自动下载更新：开" : "自动下载更新：关");
+    }
+
+    private static Component labelHotkeys() {
+        return Component.literal(RailConfig.get().hotkeysOff ? "停用全部快捷键：开" : "停用全部快捷键：关");
     }
 
     private static Component labelSync() {

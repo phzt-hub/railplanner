@@ -50,7 +50,7 @@ public abstract class GuiMapMixin {
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void railplanner$mouseClicked(MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
-        if (Planner.onClick(this.railplanner$view(), event.button(), event.x(), event.y())) {
+        if (Planner.onClick(this.railplanner$view(), event.button(), event.x(), event.y(), doubleClick)) {
             cir.setReturnValue(true);
         }
     }

@@ -41,8 +41,9 @@ public final class RouteStore {
                     route.radius = r.radius > 0 ? r.radius : 24.0;
                     if (r.anchors != null) {
                         for (int[] a : r.anchors) {
-                            if (a != null && a.length >= 2) {
-                                route.anchors.add(new Anchor(a[0], a[1]));
+                            Anchor anchor = Anchor.fromArray(a);
+                            if (anchor != null) {
+                                route.anchors.add(anchor);
                             }
                         }
                     }
@@ -98,7 +99,7 @@ public final class RouteStore {
     public static void save(String worldId, List<RailRoute> routes) {
         Path p = file(worldId);
         FileDto dto = new FileDto();
-        dto.version = 1;
+        dto.version = 2;
         dto.world = worldId;
         dto.routes = new ArrayList<>();
         for (RailRoute route : routes) {
@@ -109,7 +110,7 @@ public final class RouteStore {
             r.radius = route.radius;
             r.anchors = new ArrayList<>();
             for (Anchor a : route.anchors) {
-                r.anchors.add(new int[]{a.x(), a.z()});
+                r.anchors.add(a.toArray());
             }
             dto.routes.add(r);
         }
