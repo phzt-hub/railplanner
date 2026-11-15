@@ -1,3 +1,35 @@
 {
-  "key.railplanner.toggle": "铁路规划"
+  "key.category.railplanner.planner": "铁路选线",
+  "key.railplanner.toggle": "规划模式",
+  "key.railplanner.finish": "完成这条线",
+  "key.railplanner.undo": "撤销最后一个点",
+  "key.railplanner.radius": "圆曲线半径（Shift 反向）",
+  "key.railplanner.autoroute": "自动选线",
+  "key.railplanner.grade_down": "设计限坡调低（Shift 5%）",
+  "key.railplanner.grade_up": "设计限坡调高（Shift 5%）",
+  "key.railplanner.settings": "打开设置页",
+
+  "railplanner.config.title": "铁路选线设置",
+  "railplanner.config.updates_on": "自动检查更新：开",
+  "railplanner.config.updates_off": "自动检查更新：关",
+  "railplanner.config.interval": "检查间隔：%s 小时",
+  "railplanner.config.check_now": "立即检查更新",
+  "railplanner.config.open_page": "打开下载页",
+  "railplanner.config.keybinds": "按键绑定…",
+  "railplanner.config.done": "完成",
+  "railplanner.config.version": "本机 %s　线上 %s",
+  "railplanner.config.last_check": "上次检查：%s",
+  "railplanner.config.unknown": "（还没查到）",
+  "railplanner.config.never": "从未检查",
+  "railplanner.config.keys": "进入规划：%s　设置：%s",
+  "railplanner.config.note": "改键：选项 → 控制 → 按键绑定 → 铁路选线",
+  "railplanner.config.status.never": "还没查过",
+  "railplanner.config.status.checking": "正在检查…",
+  "railplanner.config.status.up_to_date": "已是最新版",
+  "railplanner.config.status.newer": "有新版本 %s",
+  "railplanner.config.status.failed": "检查失败：%s",
+
+  "railplanner.chat.prefix": "[铁路选线]",
+  "railplanner.update.available": " 有新版本 %s（当前 %s）",
+  "railplanner.update.open": "· 点这里打开下载页"
 }

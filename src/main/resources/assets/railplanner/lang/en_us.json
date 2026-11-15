@@ -1,4 +1,35 @@
 {
-  "key.railplanner.toggle": "铁路规划 (Rail Planner)",
-  "key.categories.misc": "杂项"
+  "key.category.railplanner.planner": "Rail Planner",
+  "key.railplanner.toggle": "Planner mode",
+  "key.railplanner.finish": "Finish route",
+  "key.railplanner.undo": "Remove last point",
+  "key.railplanner.radius": "Curve radius (Shift reverses)",
+  "key.railplanner.autoroute": "Auto-route to cursor",
+  "key.railplanner.grade_down": "Lower design grade (Shift 5%)",
+  "key.railplanner.grade_up": "Raise design grade (Shift 5%)",
+  "key.railplanner.settings": "Open settings",
+
+  "railplanner.config.title": "Rail Planner Settings",
+  "railplanner.config.updates_on": "Update check: on",
+  "railplanner.config.updates_off": "Update check: off",
+  "railplanner.config.interval": "Check every %s h",
+  "railplanner.config.check_now": "Check now",
+  "railplanner.config.open_page": "Open download page",
+  "railplanner.config.keybinds": "Key binds…",
+  "railplanner.config.done": "Done",
+  "railplanner.config.version": "Local %s　remote %s",
+  "railplanner.config.last_check": "Last checked: %s",
+  "railplanner.config.unknown": "(unknown)",
+  "railplanner.config.never": "never",
+  "railplanner.config.keys": "Planner: %s　Settings: %s",
+  "railplanner.config.note": "Key binds: Options → Controls → Key Binds → Rail Planner",
+  "railplanner.config.status.never": "not checked yet",
+  "railplanner.config.status.checking": "checking…",
+  "railplanner.config.status.up_to_date": "up to date",
+  "railplanner.config.status.newer": "new version %s",
+  "railplanner.config.status.failed": "check failed: %s",
+
+  "railplanner.chat.prefix": "[Rail Planner]",
+  "railplanner.update.available": " version %s is available (you have %s)",
+  "railplanner.update.open": "· click to open the download page"
 }

@@ -43,6 +43,9 @@ dependencies {
 	// Xaero's World Map 26.3 (Fabric) + its nested XaeroLib — compile only; at runtime the player installs them.
 	compileOnly files("libs/xaeroworldmap-fabric-26.3-1.47.2.jar")
 	compileOnly files("libs/xaerolib-fabric-26.3-1.8.5.jar")
+
+	// Mod Menu 是可选依赖：装了就在模组列表里出现齿轮，没装也不影响任何功能。
+	compileOnly files("libs/modmenu-21.0.1.jar")
 }
 
 processResources {

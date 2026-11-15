@@ -19,11 +19,13 @@
 | 右键点顶点 | 删掉这个点 |
 | 左键拖空白 | 照旧平移地图 |
 | `Enter` | 完成这条线并保存（下一点会自动开一条新线） |
-| `Delete` / `Backspace` | 删最后一个点 |
+| `Delete` | 删最后一个点 |
 | `R` / `Shift+R` | 圆曲线半径 ×1.25 / ×0.8（4–200 格） |
 | `[` `]`（`Shift` 一次 5%） | 设计限坡 1%–30%，默认 8% |
-| `G` | 从最后一个点到鼠标位置自动选线（A*，按坡度与跨水代价） |
+| `J` | 从最后一个点到鼠标位置自动选线（A*，按坡度与跨水代价） |
 | `Esc` | 关地图（自动存盘） |
+
+上表只是默认绑定，**每个键都能改**：选项 → 控制 → 按键绑定 → **铁路选线**。改完立刻生效，地图左上角面板里的提示字也跟着换成你绑的键。
 
 鼠标停在折点上显示坐标；停在一个折点附近（22 像素内）显示这个弯道的 **R / Δ / T / L / E**。
 
@@ -58,16 +60,49 @@
 
 `<游戏目录>/railplanner/<Xaero 世界 ID>.json`，每条线一组锚点，跟着存档走，删文件即清空。
 
+## 设置与自动检查更新
+
+按 `U`（可改）打开设置页；装了 **Mod Menu** 的话，模组列表里也有齿轮入口。
+
+| 项 | 作用 |
+|---|---|
+| 自动检查更新 | 默认开。关掉就一个网络请求都不发 |
+| 检查间隔 | 6 / 12 / 24 / 48 小时，默认 12 |
+| 立即检查更新 | 不看开关和间隔，马上查一次 |
+| 打开下载页 | 开 release 页；查到新版本时直接开那一版 |
+| 按键绑定… | 跳到原版按键绑定页（筛选到「铁路选线」分类） |
+
+检查在进世界之后做：进世界一次，之后每 5 分钟看一眼到没到期。请求只有一个
+`GET https://api.github.com/repos/phzt-hub/railplanner/releases/latest`，带 `If-None-Match`：
+版本没变时 GitHub 回 304，**不计入**未登录的 60 次/小时限流；除 `User-Agent: RailPlanner/<版本>` 外不发任何本机数据。
+查到新版本在聊天栏打一行，点那一行直接开下载页；重复提示同一版只打一次。
+
+配置文件 `<游戏目录>/config/railplanner.json`：
+
+```json
+{
+  "checkUpdates": true,
+  "intervalHours": 12,
+  "lastCheckEpochMs": 0,
+  "lastEtag": "",
+  "latestVersion": "",
+  "latestUrl": ""
+}
+```
+
+删掉它就回默认值。`lastEtag` 是缓存标记，别手工改。
+
 ## 构建
 
 ```sh
-./tools/fetch-xaero.sh   # 下载编译用的 Xaero 26.3 jar（不进仓库：Xaero 是 All Rights Reserved）
-./gradlew25 build        # 不要用 ./gradlew：全局 ~/.gradle/gradle.properties 把 JVM 钉在 java-21
+./tools/fetch-xaero.sh     # 下载编译用的 Xaero 26.3 jar（不进仓库：Xaero 是 All Rights Reserved）
+./tools/fetch-modmenu.sh   # 下载编译用的 Mod Menu（可选依赖，同样不进仓库）
+./gradlew25 build          # 不要用 ./gradlew：全局 ~/.gradle/gradle.properties 把 JVM 钉在 java-21
 ```
 
-产物：`build/libs/railplanner-0.1.0.jar`。
+产物：`build/libs/railplanner-0.2.0.jar`。
 
-自检：`./tools/geom-check.sh`（不启游戏，验证圆曲线参数与像素化的连续性）。
+自检：`./tools/geom-check.sh`（圆曲线参数与像素化连续性）、`./tools/version-check.sh`（版本号比较），都不启游戏。
 
 开发调试：`./gradlew25 runClientTest` 会直接进 `run/saves/railplanner_test`（1440×900），方便在无头 X 里截图。
 
@@ -77,3 +112,5 @@
 - 对着 Xaero 1.47.2 写的，Xaero 升级后内部类名变了要跟着改 mixin。
 - 只有单一半径圆曲线，没有缓和曲线；纵断面只做限坡剖切，没做竖曲线。
 - 一次只编辑一条线；别的线只显示不动（点它的线可以捡回来编辑）。
+- 更新检查要能连上 GitHub；连不上就在设置页显示失败原因，不影响画线。
+- 没装 Mod Menu 也能用：设置页走 `U` 键。

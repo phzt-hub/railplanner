@@ -8,7 +8,8 @@
 	"license": "MIT",
 	"environment": "client",
 	"entrypoints": {
-		"client": ["com.phzt.railplanner.client.RailPlannerClient"]
+		"client": ["com.phzt.railplanner.client.RailPlannerClient"],
+		"modmenu": ["com.phzt.railplanner.client.compat.RailPlannerModMenu"]
 	},
 	"mixins": [
 		{
@@ -22,5 +23,8 @@
 		"java": ">=25",
 		"fabric-api": "*",
 		"xaeroworldmap": ">=1.47"
+	},
+	"recommends": {
+		"modmenu": ">=21.0.1"
 	}
 }

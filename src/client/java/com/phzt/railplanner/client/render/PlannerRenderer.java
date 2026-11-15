@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.render;
 
+import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.geom.Vec2;
@@ -40,7 +41,8 @@ public final class PlannerRenderer {
             drawHud(g, view, mouseX, mouseY, current);
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
-            badge(g, font, 6, 6, "铁路选线 · 按 B 进入规划模式（" + routes.size() + " 条线）");
+            badge(g, font, 6, 6, "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
+                    + " 进入规划模式（" + routes.size() + " 条线）");
         }
     }
 
@@ -133,7 +135,7 @@ public final class PlannerRenderer {
         List<String> lines = new ArrayList<>();
         if (current == null) {
             lines.add("左键点地图，开始画一条新线");
-            lines.add("B 退出规划 · Esc 关闭地图");
+            lines.add(RailPlannerClient.keyName(RailPlannerClient.TOGGLE) + " 退出规划 · Esc 关闭地图");
         } else {
             // 下面按实际状态补行
             lines.add(String.format("%s · %d 点 · R %.0f", current.name, current.anchors.size(), current.radius));
@@ -151,7 +153,10 @@ public final class PlannerRenderer {
                 }
             }
             if (st != null) {
-                lines.add(String.format("地面最大坡 %.1f%% · 设计限坡 %.1f%%（[ ] 调）", st.maxTerrainGradePct, RouteStats.MAX_DESIGN_GRADE));
+                lines.add(String.format("地面最大坡 %.1f%% · 设计限坡 %.1f%%（%s %s 调）",
+                        st.maxTerrainGradePct, RouteStats.MAX_DESIGN_GRADE,
+                        RailPlannerClient.keyName(RailPlannerClient.GRADE_DOWN),
+                        RailPlannerClient.keyName(RailPlannerClient.GRADE_UP)));
                 lines.add(String.format("爬 %d · 降 %d", Math.round(st.climb), Math.round(st.descent)));
                 lines.add(String.format("隧道 %d · 桥 %d · 地面 %d · 未知 %d",
                         Math.round(st.tunnelLength), Math.round(st.bridgeLength), Math.round(st.groundLength), st.unknownCells));
@@ -161,11 +166,18 @@ public final class PlannerRenderer {
             }
         }
 
-        lines.add("左键加点/拖顶点 · 右键删点 · Enter 完成 · R 半径 · G 自动选线");
+        lines.add("左键加点/拖顶点 · 右键删点 · "
+                + RailPlannerClient.keyName(RailPlannerClient.FINISH) + " 完成 · "
+                + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
+                + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线");
 
         int x = 6;
         int y = 6;
         int w = 306;
+        for (String line : lines) {
+            w = Math.max(w, font.width(line) + 18);
+        }
+        w = Math.max(w, font.width("铁路选线") + 74);
         int lineH = 11;
         int chartH = st != null ? 42 : 0;
         int h = 20 + lines.size() * lineH + chartH + 8;

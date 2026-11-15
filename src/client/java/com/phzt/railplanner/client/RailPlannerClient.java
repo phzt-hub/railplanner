@@ -1,28 +1,87 @@
 package com.phzt.railplanner.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.config.RailConfigScreen;
 import com.phzt.railplanner.client.planner.Planner;
+import com.phzt.railplanner.client.update.UpdateChecker;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class RailPlannerClient implements ClientModInitializer {
 
-    public static final KeyMapping TOGGLE = new KeyMapping(
-            "key.railplanner.toggle",
-            InputConstants.Type.KEYBOARD,
-            InputConstants.KEY_B,
-            KeyMapping.Category.MISC);
+    private static final Logger LOG = LoggerFactory.getLogger("railplanner");
+
+    /** 选项→控制→按键绑定里的分类。 */
+    public static final KeyMapping.Category CATEGORY =
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath("railplanner", "planner"));
+
+    public static final KeyMapping TOGGLE =
+            new KeyMapping("key.railplanner.toggle", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, CATEGORY);
+    public static final KeyMapping FINISH =
+            new KeyMapping("key.railplanner.finish", InputConstants.Type.KEYBOARD, InputConstants.KEY_RETURN, CATEGORY);
+    public static final KeyMapping UNDO =
+            new KeyMapping("key.railplanner.undo", InputConstants.Type.KEYBOARD, InputConstants.KEY_DELETE, CATEGORY);
+    public static final KeyMapping RADIUS =
+            new KeyMapping("key.railplanner.radius", InputConstants.Type.KEYBOARD, InputConstants.KEY_R, CATEGORY);
+    /** J：原版没占用（G 被原版「快捷动作」占了）。 */
+    public static final KeyMapping AUTOROUTE =
+            new KeyMapping("key.railplanner.autoroute", InputConstants.Type.KEYBOARD, InputConstants.KEY_J, CATEGORY);
+    public static final KeyMapping GRADE_DOWN =
+            new KeyMapping("key.railplanner.grade_down", InputConstants.Type.KEYBOARD, InputConstants.KEY_LBRACKET, CATEGORY);
+    public static final KeyMapping GRADE_UP =
+            new KeyMapping("key.railplanner.grade_up", InputConstants.Type.KEYBOARD, InputConstants.KEY_RBRACKET, CATEGORY);
+    /** 没装 Mod Menu 就靠它打开设置页。U 原版没占用（O 被原版「好友列表」占了）。 */
+    public static final KeyMapping SETTINGS =
+            new KeyMapping("key.railplanner.settings", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_U, CATEGORY);
+
+    private static final KeyMapping[] ALL = {
+            TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, SETTINGS
+    };
 
     @Override
     public void onInitializeClient() {
-        KeyMappingHelper.registerKeyMapping(TOGGLE);
+        for (KeyMapping mapping : ALL) {
+            KeyMappingHelper.registerKeyMapping(mapping);
+        }
+        RailConfig.load();
+        UpdateChecker.init();
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (TOGGLE.consumeClick()) {
-                Planner.toggle(client);
+            // 有界面开着时不吃这两个全局键：地图里的按键由 GuiMapMixin 自己接。
+            int toggles = drain(TOGGLE);
+            int settings = drain(SETTINGS);
+            if (client.gui.screen() == null) {
+                if (toggles > 0) {
+                    Planner.toggle(client);
+                    LOG.info("规划模式 → {}（按键 {}）", Planner.isActive() ? "开" : "关", keyName(TOGGLE));
+                }
+                if (settings > 0) {
+                    LOG.info("打开设置页（按键 {}）", keyName(SETTINGS));
+                    client.gui.setScreen(new RailConfigScreen(null));
+                }
             }
             Planner.tick(client);
+            UpdateChecker.tick(client);
         });
+    }
+
+    /** 当前绑定的按键名，界面里用来显示「按 X 做什么」。 */
+    public static String keyName(KeyMapping mapping) {
+        return mapping == null ? "?" : mapping.getTranslatedKeyMessage().getString();
+    }
+
+    private static int drain(KeyMapping mapping) {
+        int count = 0;
+        while (mapping.consumeClick()) {
+            count++;
+        }
+        return count;
     }
 }

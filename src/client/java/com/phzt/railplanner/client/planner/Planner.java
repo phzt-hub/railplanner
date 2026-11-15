@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.planner;
 
+import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.model.Anchor;
 import com.phzt.railplanner.client.model.RailRoute;
@@ -8,18 +9,21 @@ import com.phzt.railplanner.client.render.MapView;
 import com.phzt.railplanner.client.render.PlannerRenderer;
 import java.util.ArrayList;
 import java.util.List;
-import com.mojang.blaze3d.platform.InputConstants;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import xaero.map.MapProcessor;
 import xaero.map.WorldMapSession;
 import xaero.map.gui.GuiMap;
 
 /** 规划状态与交互。 */
 public final class Planner {
+
+    private static final Logger LOG = LoggerFactory.getLogger("railplanner/planner");
 
     private static final int[] PALETTE = {
             0xFFFF5252, 0xFF40C4FF, 0xFFFFD740, 0xFF69F0AE, 0xFFFF80AB, 0xFFB388FF, 0xFFFFAB40
@@ -255,59 +259,74 @@ public final class Planner {
         return null;
     }
 
+    /**
+     * 地图里的按键全部走 {@link KeyMapping}：玩家在「按键绑定」里改过的键立刻生效，
+     * 界面上显示的字（HUD 提示）也读同一份绑定。
+     */
     public static boolean onKey(KeyEvent event, MapView view, MapProcessor mp) {
-        int key = event.key();
         if (!active) {
-            // 地图里再按一次 B 可以重新进入规划模式
-            if (key == InputConstants.KEY_B) {
+            // 地图里再按一次「规划模式」键可以重新进入
+            if (RailPlannerClient.TOGGLE.matches(event)) {
                 active = true;
                 statsDirty = true;
+                LOG.info("按键 {}：地图里重新进入规划模式", RailPlannerClient.keyName(RailPlannerClient.TOGGLE));
                 return true;
             }
             return false;
         }
         boolean shift = event.hasShiftDown();
-        switch (key) {
-            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
-                finishRoute();
-                return true;
-            }
-            case InputConstants.KEY_DELETE, InputConstants.KEY_BACKSPACE -> {
-                if (current != null && !current.anchors.isEmpty()) {
-                    current.anchors.remove(current.anchors.size() - 1);
-                    markDirty();
-                }
-                return true;
-            }
-            case InputConstants.KEY_R -> {
-                if (current != null) {
-                    current.radius = Math.max(4.0, Math.min(200.0, current.radius * (shift ? 0.8 : 1.25)));
-                    markDirty();
-                }
-                return true;
-            }
-            case InputConstants.KEY_G -> {
-                autoRoute(mp, view);
-                return true;
-            }
-            case InputConstants.KEY_LBRACKET -> {
-                RouteStats.nudgeMaxDesignGrade(shift ? -5.0 : -1.0);
-                markDirty();
-                return true;
-            }
-            case InputConstants.KEY_RBRACKET -> {
-                RouteStats.nudgeMaxDesignGrade(shift ? 5.0 : 1.0);
-                markDirty();
-                return true;
-            }
-            case InputConstants.KEY_B -> {
-                active = false;
-                return true;
-            }
-            default -> {
-                return false;
-            }
+        if (RailPlannerClient.FINISH.matches(event)) {
+            finishRoute();
+            LOG.info("按键 {}：完成并保存这条线", RailPlannerClient.keyName(RailPlannerClient.FINISH));
+            return true;
         }
+        if (RailPlannerClient.UNDO.matches(event)) {
+            if (current != null && !current.anchors.isEmpty()) {
+                current.anchors.remove(current.anchors.size() - 1);
+                markDirty();
+                LOG.info("按键 {}：撤销一个点，剩 {} 个", RailPlannerClient.keyName(RailPlannerClient.UNDO),
+                        current.anchors.size());
+            }
+            return true;
+        }
+        if (RailPlannerClient.RADIUS.matches(event)) {
+            if (current != null) {
+                current.radius = Math.max(4.0, Math.min(200.0, current.radius * (shift ? 0.8 : 1.25)));
+                markDirty();
+                LOG.info("按键 {}：圆曲线半径 → {} 格", RailPlannerClient.keyName(RailPlannerClient.RADIUS),
+                        Math.round(current.radius));
+            }
+            return true;
+        }
+        if (RailPlannerClient.AUTOROUTE.matches(event)) {
+            autoRoute(mp, view);
+            LOG.info("按键 {}：自动选线", RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE));
+            return true;
+        }
+        if (RailPlannerClient.GRADE_DOWN.matches(event)) {
+            RouteStats.nudgeMaxDesignGrade(shift ? -5.0 : -1.0);
+            markDirty();
+            LOG.info("按键 {}：设计限坡 → {}%", RailPlannerClient.keyName(RailPlannerClient.GRADE_DOWN),
+                    floatText(RouteStats.MAX_DESIGN_GRADE));
+            return true;
+        }
+        if (RailPlannerClient.GRADE_UP.matches(event)) {
+            RouteStats.nudgeMaxDesignGrade(shift ? 5.0 : 1.0);
+            markDirty();
+            LOG.info("按键 {}：设计限坡 → {}%", RailPlannerClient.keyName(RailPlannerClient.GRADE_UP),
+                    floatText(RouteStats.MAX_DESIGN_GRADE));
+            return true;
+        }
+        if (RailPlannerClient.TOGGLE.matches(event)) {
+            active = false;
+            LOG.info("按键 {}：退出规划模式（地图还开着）", RailPlannerClient.keyName(RailPlannerClient.TOGGLE));
+            return true;
+        }
+        return false;
+    }
+
+    private static String floatText(double v) {
+        return String.format("%.1f", v);
     }
 
     private static void autoRoute(MapProcessor mp, MapView view) {
