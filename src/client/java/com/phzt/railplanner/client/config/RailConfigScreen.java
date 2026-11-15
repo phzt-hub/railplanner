@@ -2,6 +2,7 @@ package com.phzt.railplanner.client.config;
 
 import com.mojang.blaze3d.Blaze3D;
 import com.phzt.railplanner.client.RailPlannerClient;
+import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.update.UpdateChecker;
 import java.net.URI;
 import java.time.Instant;
@@ -15,16 +16,28 @@ import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 设置页：更新检查开关/间隔/立即检查，外加跳去原版按键绑定。 */
+/**
+ * 设置页：左栏世界里的 3D 线（开关、穿山、隧道/桥的形态、显示已选的点、距离），
+ * 右栏编辑锁定与更新检查，底下一行是按键绑定和完成。
+ *
+ * <p>所有开关都落盘到 {@code config/railplanner.json}，改完立刻生效（画的时候每次读配置）。
+ */
 public class RailConfigScreen extends Screen {
 
     private static final Logger LOG = LoggerFactory.getLogger("railplanner/config");
     private static final int[] INTERVALS = {6, 12, 24, 48};
+    private static final int[] RANGES = {64, 128, 256, 512, 1024};
+    private static final int ROW = 22;
+    private static final int HEADER = 0xFF9AA4AE;
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final Screen parent;
     private int infoTop;
+    private int leftX;
+    private int rightX;
+    private int colW;
+    private int headerY;
 
     public RailConfigScreen(Screen parent) {
         super(Component.translatable("railplanner.config.title"));
@@ -33,8 +46,67 @@ public class RailConfigScreen extends Screen {
 
     @Override
     protected void init() {
-        int x = this.width / 2 - 100;
-        int y = Math.max(46, this.height / 2 - 78);
+        int gap = 8;
+        this.colW = Math.min(200, Math.max(60, (this.width - 3 * gap) / 2));
+        this.leftX = this.width / 2 - gap / 2 - this.colW;
+        this.rightX = this.width / 2 + gap / 2;
+        int top = Math.max(56, this.height / 2 - 84);
+        this.headerY = top - 13;
+        int left = top;
+        int right = top;
+
+        // 左栏：世界里的 3D 线
+        this.addRenderableWidget(Button.builder(labelWorldLines(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.worldLines = !cfg.worldLines;
+            cfg.save();
+            b.setMessage(labelWorldLines());
+            LOG.info("世界里的 3D 线 → {}", cfg.worldLines ? "开" : "关");
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        this.addRenderableWidget(Button.builder(labelXray(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.worldXray = !cfg.worldXray;
+            cfg.save();
+            b.setMessage(labelXray());
+            LOG.info("3D 线穿山可见 → {}", cfg.worldXray ? "开" : "关");
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        this.addRenderableWidget(Button.builder(labelShape(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.worldSurfaces = !cfg.worldSurfaces;
+            cfg.save();
+            b.setMessage(labelShape());
+            LOG.info("隧道/桥的画法 → {}", cfg.worldSurfaces ? "半透明面片" : "立柱");
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        this.addRenderableWidget(Button.builder(labelAnchors(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.worldAnchors = !cfg.worldAnchors;
+            cfg.save();
+            b.setMessage(labelAnchors());
+            LOG.info("世界里的已选点 → {}", cfg.worldAnchors ? "开" : "关");
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        this.addRenderableWidget(Button.builder(labelRange(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.worldRange = nextRange(cfg.worldRange);
+            cfg.save();
+            b.setMessage(labelRange());
+            LOG.info("3D 线显示距离 → {} 格", Math.round(cfg.worldRange));
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        // 右栏：编辑锁定 + 更新检查
+        this.addRenderableWidget(Button.builder(labelLock(), b -> {
+            Planner.toggleLock();
+            b.setMessage(labelLock());
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
 
         this.addRenderableWidget(Button.builder(labelUpdates(), b -> {
             RailConfig cfg = RailConfig.get();
@@ -42,25 +114,25 @@ public class RailConfigScreen extends Screen {
             cfg.save();
             b.setMessage(labelUpdates());
             LOG.info("自动检查更新 → {}", cfg.checkUpdates ? "开" : "关");
-        }).bounds(x, y, 200, 20).build());
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
 
-        y += 24;
         this.addRenderableWidget(Button.builder(labelInterval(), b -> {
             RailConfig cfg = RailConfig.get();
             cfg.intervalHours = nextInterval(cfg.intervalHours);
             cfg.save();
             b.setMessage(labelInterval());
             LOG.info("检查间隔 → {} 小时", cfg.intervalHours);
-        }).bounds(x, y, 200, 20).build());
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
 
-        y += 24;
         this.addRenderableWidget(Button.builder(Component.translatable("railplanner.config.check_now"), b -> {
             LOG.info("手动触发检查更新");
             UpdateChecker.checkNow();
-        }).bounds(x, y, 200, 20).build());
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
 
-        y += 24;
-        Button open = Button.builder(Component.translatable("railplanner.config.open_page"), b -> {
+        this.addRenderableWidget(Button.builder(Component.translatable("railplanner.config.open_page"), b -> {
             String url = pageUrl();
             LOG.info("打开下载页 {}", url);
             try {
@@ -68,20 +140,18 @@ public class RailConfigScreen extends Screen {
             } catch (RuntimeException e) {
                 LOG.warn("打开 {} 失败：{}", url, e.toString());
             }
-        }).bounds(x, y, 200, 20).build();
-        this.addRenderableWidget(open);
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
 
-        y += 24;
+        // 底下一行：按键绑定 | 完成
         this.addRenderableWidget(Button.builder(Component.translatable("railplanner.config.keybinds"),
                 b -> this.minecraft.gui.setScreen(new KeyBindsScreen(this, this.minecraft.options)))
-                .bounds(x, y, 200, 20).build());
-
-        y += 24;
+                .bounds(leftX, left, colW, 20).build());
         this.addRenderableWidget(Button.builder(Component.translatable("railplanner.config.done"),
-                b -> this.minecraft.gui.setScreen(this.parent)).bounds(x, y, 200, 20).build());
+                b -> this.minecraft.gui.setScreen(this.parent)).bounds(rightX, right, colW, 20).build());
 
-        this.infoTop = y + 30;
-        LOG.info("设置页打开：{}x{}，按钮 6 个", this.width, this.height);
+        this.infoTop = left + ROW + 6;
+        LOG.info("设置页打开：{}x{}，按钮 {} 个", this.width, this.height, 12);
     }
 
     @Override
@@ -89,32 +159,42 @@ public class RailConfigScreen extends Screen {
         super.extractRenderState(g, mouseX, mouseY, partialTick);
 
         g.centeredText(this.font, this.getTitle(), this.width / 2, 24, 0xFFFFFFFF);
+        g.text(this.font, Component.translatable("railplanner.config.col_world"), leftX, headerY, HEADER);
+        g.text(this.font, Component.translatable("railplanner.config.col_edit"), rightX, headerY, HEADER);
 
-        int left = this.width / 2 - 100;
-        int y = this.infoTop;
         int text = 0xFFE6E6E6;
-
-        g.text(this.font, Component.translatable("railplanner.config.version",
-                UpdateChecker.currentVersion(), latestLabel()), left, y, text);
-
-        y += 12;
-        long last = UpdateChecker.lastCheckEpochMs();
-        String when = last <= 0
-                ? Component.translatable("railplanner.config.never").getString()
-                : TIME.format(Instant.ofEpochMilli(last));
-        g.text(this.font, Component.translatable("railplanner.config.last_check", when), left, y, text);
+        int y = infoTop;
+        if (y < this.height - 20) {
+            g.text(this.font, Component.translatable("railplanner.config.version",
+                    UpdateChecker.currentVersion(), latestLabel()), leftX, y, text);
+        }
 
         y += 12;
-        g.text(this.font, statusLine(), left, y, statusColor());
+        if (y < this.height - 20) {
+            long last = UpdateChecker.lastCheckEpochMs();
+            String when = last <= 0
+                    ? Component.translatable("railplanner.config.never").getString()
+                    : TIME.format(Instant.ofEpochMilli(last));
+            g.text(this.font, Component.translatable("railplanner.config.last_check", when), leftX, y, text);
+        }
+
+        y += 12;
+        if (y < this.height - 20) {
+            g.text(this.font, statusLine(), leftX, y, statusColor());
+        }
 
         y += 14;
-        Component keys = Component.translatable("railplanner.config.keys",
-                RailPlannerClient.keyName(RailPlannerClient.TOGGLE),
-                RailPlannerClient.keyName(RailPlannerClient.SETTINGS));
-        g.text(this.font, keys, left, y, 0xFF9AA4AE);
+        if (y < this.height - 20) {
+            Component keys = Component.translatable("railplanner.config.keys",
+                    RailPlannerClient.keyName(RailPlannerClient.TOGGLE),
+                    RailPlannerClient.keyName(RailPlannerClient.SETTINGS));
+            g.text(this.font, keys, leftX, y, HEADER);
+        }
 
-        Component note = Component.translatable("railplanner.config.note");
-        g.text(this.font, note, this.width / 2 - this.font.width(note) / 2, this.height - 26, 0xFF8A949E);
+        if (this.height >= 320) {
+            Component note = Component.translatable("railplanner.config.note");
+            g.text(this.font, note, this.width / 2 - this.font.width(note) / 2, this.height - 26, 0xFF8A949E);
+        }
     }
 
     /** 有新版本就打开 release 页，否则打开仓库的 releases 列表。 */
@@ -128,6 +208,35 @@ public class RailConfigScreen extends Screen {
         return latest == null || latest.isEmpty()
                 ? Component.translatable("railplanner.config.unknown")
                 : Component.literal(latest);
+    }
+
+    private static Component labelWorldLines() {
+        return Component.translatable(RailConfig.get().worldLines
+                ? "railplanner.config.world_lines_on" : "railplanner.config.world_lines_off");
+    }
+
+    private static Component labelXray() {
+        return Component.translatable(RailConfig.get().worldXray
+                ? "railplanner.config.world_xray_on" : "railplanner.config.world_xray_off");
+    }
+
+    private static Component labelShape() {
+        return Component.translatable(RailConfig.get().worldSurfaces
+                ? "railplanner.config.world_shape_surface" : "railplanner.config.world_shape_post");
+    }
+
+    private static Component labelAnchors() {
+        return Component.translatable(RailConfig.get().worldAnchors
+                ? "railplanner.config.world_anchors_on" : "railplanner.config.world_anchors_off");
+    }
+
+    private static Component labelRange() {
+        return Component.translatable("railplanner.config.world_range", Math.round(RailConfig.get().worldRange));
+    }
+
+    private static Component labelLock() {
+        return Component.translatable(RailConfig.get().anchorLock
+                ? "railplanner.config.lock_on" : "railplanner.config.lock_off");
     }
 
     private static Component labelUpdates() {
@@ -146,6 +255,16 @@ public class RailConfigScreen extends Screen {
             }
         }
         return RailConfig.DEFAULT_INTERVAL_HOURS;
+    }
+
+    private static int nextRange(double current) {
+        int now = (int) Math.round(current);
+        for (int i = 0; i < RANGES.length; i++) {
+            if (RANGES[i] == now) {
+                return RANGES[(i + 1) % RANGES.length];
+            }
+        }
+        return 256;
     }
 
     private static Component statusLine() {

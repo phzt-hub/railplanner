@@ -57,10 +57,14 @@ public final class RailPlannerClient implements ClientModInitializer {
     public static final KeyMapping WORLD_XRAY =
             new KeyMapping("key.railplanner.world_xray", InputConstants.Type.KEYBOARD,
                     InputConstants.KEY_X, CATEGORY);
+    /** L：锁住已选的点，免得按住左键时把点拖歪（地图里、世界里都能按）。 */
+    public static final KeyMapping LOCK =
+            new KeyMapping("key.railplanner.lock", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_L, CATEGORY);
 
     private static final KeyMapping[] ALL = {
             TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, HUD_COLLAPSE, SETTINGS,
-            WORLD_TOGGLE, WORLD_XRAY
+            WORLD_TOGGLE, WORLD_XRAY, LOCK
     };
 
     @Override
@@ -79,7 +83,11 @@ public final class RailPlannerClient implements ClientModInitializer {
             int settings = drain(SETTINGS);
             int worldToggles = drain(WORLD_TOGGLE);
             int worldXrays = drain(WORLD_XRAY);
+            int lockToggles = drain(LOCK);
             if (client.gui.screen() == null) {
+                if (lockToggles > 0) {
+                    Planner.toggleLock();
+                }
                 if (worldToggles > 0) {
                     RailConfig config = RailConfig.get();
                     config.worldLines = !config.worldLines;

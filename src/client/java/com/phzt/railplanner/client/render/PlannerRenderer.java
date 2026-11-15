@@ -53,6 +53,7 @@ public final class PlannerRenderer {
                 drawHud(g, view, mouseX, mouseY, shown);
             }
             drawHover(g, view, mouseX, mouseY, current);
+            drawNotice(g, view);
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
             badge(g, font, 6, 6, "铁路选线 · 按 " + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
@@ -191,8 +192,11 @@ public final class PlannerRenderer {
                 + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
                 + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 折叠", DIM);
 
+        boolean locked = RailConfig.get().anchorLock;
         add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 世界里的 3D 线 · "
-                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山可见", DIM);
+                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山可见 · "
+                + RailPlannerClient.keyName(RailPlannerClient.LOCK) + (locked ? " 点已锁" : " 锁点"),
+                locked ? CAUTION : DIM);
 
         int x = 6;
         int y = 6;
@@ -376,6 +380,20 @@ public final class PlannerRenderer {
             prevY = py;
             hasPrev = true;
         }
+    }
+
+    /** 地图中间下方那行一闪而过的提示（「点已锁定，拖不动」之类）。 */
+    private static void drawNotice(GuiGraphicsExtractor g, MapView view) {
+        String notice = Planner.notice();
+        if (notice == null) {
+            return;
+        }
+        Font font = Minecraft.getInstance().font;
+        int w = font.width(notice) + 18;
+        int x = (view.width() - w) / 2;
+        int y = view.height() - 56;
+        panel(g, x, y, w, 20);
+        g.text(font, notice, x + 9, y + 6, CAUTION);
     }
 
     private static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h) {

@@ -70,6 +70,10 @@ public final class WorldHud {
             texts.add(" · 3D 线关");
             colors.add(DIM);
         }
+        if (config.anchorLock) {
+            texts.add(" · 点已锁");
+            colors.add(CAUTION);
+        }
         texts.add(" · " + RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 开关 · "
                 + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山");
         colors.add(DIM);

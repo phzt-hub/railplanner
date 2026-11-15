@@ -15,6 +15,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xaero.map.MapProcessor;
@@ -38,6 +39,11 @@ public final class Planner {
     private static RailRoute displayed;
     public static int dragIndex = -1;
     public static int hoverIndex = -1;
+
+    /** 地图里那行提示的正文与到期时间。 */
+    private static String notice = "";
+    private static long noticeUntil;
+    private static final long NOTICE_MS = 2500;
 
     private static boolean clickPending;
     private static double pressX, pressY;
@@ -118,6 +124,37 @@ public final class Planner {
         }
     }
 
+    /** 锁住/解锁已选的点：锁上之后左键按住不再拖动，免得误触把已经画好的线扯歪。 */
+    public static void toggleLock() {
+        RailConfig config = RailConfig.get();
+        config.anchorLock = !config.anchorLock;
+        RailConfig.save();
+        if (config.anchorLock) {
+            dragIndex = -1;
+        }
+        toast(config.anchorLock ? "点 → 已锁定，拖动不会再移动" : "点 → 解锁，可以拖动");
+        LOG.info("按键 {}：点的锁定 → {}", RailPlannerClient.keyName(RailPlannerClient.LOCK),
+                config.anchorLock ? "开" : "关");
+    }
+
+    /**
+     * 一句话提示：世界里的走 HUD 上那行，地图里另外画一行——地图开着的时候 HUD 被挡在后面，
+     * 「拖不动」这种反馈必须在地图里看得见，否则玩家会以为是自己没点中。
+     */
+    private static void toast(String text) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.gui != null && mc.gui.hud != null) {
+            mc.gui.hud.setOverlayMessage(Component.literal(text), false);
+        }
+        notice = text;
+        noticeUntil = System.currentTimeMillis() + NOTICE_MS;
+    }
+
+    /** 地图里那行提示，过期了就是 null。 */
+    public static String notice() {
+        return System.currentTimeMillis() < noticeUntil ? notice : null;
+    }
+
     public static void markDirty() {
         dirty = true;
         statsDirty = true;
@@ -177,7 +214,8 @@ public final class Planner {
         if (mp != null) {
             ensureLoaded(mp);
         }
-        if (active && dragIndex >= 0 && current != null && dragIndex < current.anchors.size()) {
+        if (active && dragIndex >= 0 && current != null && dragIndex < current.anchors.size()
+                && !RailConfig.get().anchorLock) {
             int bx = (int) Math.floor(view.worldX(mouseX));
             int bz = (int) Math.floor(view.worldZ(mouseY));
             Anchor old = current.anchors.get(dragIndex);
@@ -202,6 +240,10 @@ public final class Planner {
         int hit = hitVertex(view, current, gx, gy);
         if (button == 1) {
             if (hit >= 0) {
+                if (RailConfig.get().anchorLock) {
+                    toast("点已锁定，拖不动（" + RailPlannerClient.keyName(RailPlannerClient.LOCK) + " 解锁）");
+                    return true;
+                }
                 dragIndex = hit;
                 return true;
             }
@@ -292,6 +334,10 @@ public final class Planner {
             RailConfig.save();
             LOG.info("按键 {}：信息面板 → {}", RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE),
                     config.hudCollapsed ? "折叠成一行" : "展开");
+            return true;
+        }
+        if (RailPlannerClient.LOCK.matches(event)) {
+            toggleLock();
             return true;
         }
         if (RailPlannerClient.FINISH.matches(event)) {

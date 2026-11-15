@@ -40,6 +40,12 @@ public final class RailConfig {
     public boolean worldXray;
     /** 3D 线只画离镜头这么远以内的段，格。 */
     public double worldRange = 256.0;
+    /** 隧道/桥用半透明面片画出要挖/要架的那一块（关掉就退回一根根立柱）。 */
+    public boolean worldSurfaces = true;
+    /** 编辑时在世界里把已选的点画出来（一根针 + 一个方块框 + 序号）。 */
+    public boolean worldAnchors = true;
+    /** 锁住已选的点：左键按住不再拖动，免得误触把线扯歪（按 L 切换）。 */
+    public boolean anchorLock;
 
     private static RailConfig instance = new RailConfig();
 
