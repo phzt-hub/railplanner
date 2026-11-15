@@ -21,8 +21,10 @@ public final class RouteCodec {
         d.radius = r.radius;
         d.updatedAt = System.currentTimeMillis();
         d.anchors = new ArrayList<>();
+        d.anchorNames = new ArrayList<>();
         for (Anchor a : r.anchors) {
             d.anchors.add(a.toArray());
+            d.anchorNames.add(a.name());
         }
         return d;
     }
@@ -31,11 +33,15 @@ public final class RouteCodec {
         RailRoute r = new RailRoute(d.id, d.name, d.color);
         r.radius = d.radius > 0 ? d.radius : 24.0;
         if (d.anchors != null) {
-            for (int[] a : d.anchors) {
-                Anchor anchor = Anchor.fromArray(a);
-                if (anchor != null) {
-                    r.anchors.add(anchor);
+            for (int i = 0; i < d.anchors.size(); i++) {
+                Anchor anchor = Anchor.fromArray(d.anchors.get(i));
+                if (anchor == null) {
+                    continue;
                 }
+                if (d.anchorNames != null && i < d.anchorNames.size()) {
+                    anchor = anchor.withName(d.anchorNames.get(i));
+                }
+                r.anchors.add(anchor);
             }
         }
         return r;

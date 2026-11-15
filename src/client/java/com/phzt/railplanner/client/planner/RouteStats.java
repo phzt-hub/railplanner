@@ -7,8 +7,14 @@ import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.terrain.XaeroTerrain;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.levelgen.Heightmap;
 import xaero.map.MapProcessor;
+
+import java.util.function.Predicate;
 
 /**
  * 沿线统计：长度、坡度、隧道/桥/地面、材料、行车时间。
@@ -142,7 +148,7 @@ public final class RouteStats {
      * 某一格的地面高度：先用 Xaero 已探明的数据，没有就退回当前加载着的区块。
      *
      * <p>世界里的 3D 线一般是在没开地图的时候画的，那会儿 Xaero 的会话可能还没起来，
-     * 或者那片地方压根没探过——退回真实区块至少玩家脚下这一段是准的。
+     * 或者那片地方压根没探过——退回真实区块至少玩家脚下这一段是准的。</p>
      */
     public static int height(MapProcessor mp, int x, int z) {
         if (mp != null) {
@@ -151,9 +157,45 @@ public final class RouteStats {
                 return h;
             }
         }
+        return columnHeight(x, z);
+    }
+
+    /** 这个 y 讲不讲得通：世界最底层（基岩）和最顶层都不是能修铁路的标高。 */
+    public static boolean plausibleY(ClientLevel level, int y) {
+        return level != null && y > level.getMinY() && y < level.getMaxY();
+    }
+
+    /**
+     * 已经加载的区块里，这一列最高方块上面那一格（不含树叶，就是站上去的标高）。
+     *
+     * <p><b>不要用 {@code level.getHeight(...)} 问 MOTION_BLOCKING_NO_LEAVES</b>：客户端只会收到
+     * WORLD_SURFACE 和 MOTION_BLOCKING 这两张高度图（{@code Heightmap.Types.sendToClient()}），
+     * 另外几张在客户端从来没被填过——问它就安静地拿回世界最底层（1.18 以后是 -64），
+     * 点一下地图，标高就钉到 -64 去了。所以这里自己从最高一层往下找，语义和那张高度图一致。</p>
+     */
+    public static int columnHeight(int x, int z) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level != null && level.hasChunk(x >> 4, z >> 4)) {
-            return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (level == null) {
+            return XaeroTerrain.UNKNOWN;
+        }
+        ChunkAccess chunk = level.getChunk(x >> 4, z >> 4, ChunkStatus.FULL, false);
+        if (chunk == null) {
+            return XaeroTerrain.UNKNOWN;
+        }
+        LevelChunkSection[] sections = chunk.getSections();
+        int minY = level.getMinY();
+        int top = Math.min(sections.length - 1, ((level.getMaxY() - minY) >> 4) - 1);
+        Predicate<BlockState> opaque = Heightmap.Types.MOTION_BLOCKING_NO_LEAVES.isOpaque();
+        for (int i = top; i >= 0; i--) {
+            LevelChunkSection section = sections[i];
+            if (section == null || section.hasOnlyAir()) {
+                continue;
+            }
+            for (int dy = 15; dy >= 0; dy--) {
+                if (opaque.test(section.getBlockState(x & 15, dy, z & 15))) {
+                    return minY + (i << 4) + dy + 1;
+                }
+            }
         }
         return XaeroTerrain.UNKNOWN;
     }

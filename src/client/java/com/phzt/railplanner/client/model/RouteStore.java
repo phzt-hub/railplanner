@@ -40,11 +40,16 @@ public final class RouteStore {
                     RailRoute route = new RailRoute(r.id, r.name, r.color);
                     route.radius = r.radius > 0 ? r.radius : 24.0;
                     if (r.anchors != null) {
-                        for (int[] a : r.anchors) {
-                            Anchor anchor = Anchor.fromArray(a);
-                            if (anchor != null) {
-                                route.anchors.add(anchor);
+                        for (int i = 0; i < r.anchors.size(); i++) {
+                            Anchor anchor = Anchor.fromArray(r.anchors.get(i));
+                            if (anchor == null) {
+                                continue;
                             }
+                            // 名字和锚点分开存：老文件没有这一列，读出来就是没起名。
+                            if (r.anchorNames != null && i < r.anchorNames.size()) {
+                                anchor = anchor.withName(r.anchorNames.get(i));
+                            }
+                            route.anchors.add(anchor);
                         }
                     }
                     out.add(route);
@@ -99,7 +104,7 @@ public final class RouteStore {
     public static void save(String worldId, List<RailRoute> routes) {
         Path p = file(worldId);
         FileDto dto = new FileDto();
-        dto.version = 2;
+        dto.version = 3;
         dto.world = worldId;
         dto.routes = new ArrayList<>();
         for (RailRoute route : routes) {
@@ -109,8 +114,10 @@ public final class RouteStore {
             r.color = route.color;
             r.radius = route.radius;
             r.anchors = new ArrayList<>();
+            r.anchorNames = new ArrayList<>();
             for (Anchor a : route.anchors) {
                 r.anchors.add(a.toArray());
+                r.anchorNames.add(a.name());
             }
             dto.routes.add(r);
         }
@@ -134,5 +141,7 @@ public final class RouteStore {
         int color;
         double radius;
         List<int[]> anchors;
+        /** 与 anchors 同下标的点名字（version 3 起）。 */
+        List<String> anchorNames;
     }
 }

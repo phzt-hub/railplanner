@@ -40,7 +40,7 @@ Technically it reads **the height data Xaero's World Map has already stored**: i
 
 1. Minecraft **26.3** + **Fabric Loader 0.19.5** (Java 25 runtime)
 2. The client must have **Fabric API** and **Xaero's World Map ≥ 1.47**
-3. Drop `railplanner-0.6.1.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
+3. Drop `railplanner-0.8.0.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
 4. **The server side is optional**: drop the same jar into the server's `mods/`, no config changes. With it installed, data is stored per UUID on the server and comes back automatically when you change machines; without it, it is purely local, exactly like 0.5.0. The server **does not need Xaero** and needs no client mods either
 
 ### Use
@@ -123,7 +123,9 @@ With the map closed there is a shorter version of the same bar in the top-left o
 | Left-drag a vertex | — | Move that point | Planning mode |
 | Right-click a vertex | — | Delete this one point (**the only way to delete a middle point**) | Planning mode |
 | Left click on an existing line | — | Click within 6 pixels of a line to pick that line up and keep editing it | Planning mode |
-| Double-click a vertex | — | Change that point's Y (elevation): type a number, Enter confirms, Esc cancels | Planning mode |
+| `Ctrl` + left-click on a line | — | **Insert** a point between two existing ones, snapped onto the nearest point of the line (shape unchanged) | Planning mode |
+| Double-click a vertex | — | Change that point's **Y / name / kind**: three rows, `Tab` moves, `←` `→` cycles the kind, Enter saves, Esc cancels | Planning mode |
+| Double-click the panel's name row | — | Change this line's **name and colour**: click a swatch, drag the hue bar, or type RGB | Planning mode |
 | Left-drag empty space | — | Pan the map as usual | Any state |
 | `Enter` | Finish route（完成这条线） | Saves; the next click starts a new route | Planning mode |
 | `Delete` | Remove last point（撤销最后一个点） | Removes the last point only; middle points can't go | Planning mode |
@@ -206,15 +208,7 @@ Every point carries a Y, which is **the design elevation where the line passes t
 
 **Default**: at the moment you click, it takes **the height of the highest block** in that column (the ground surface without leaves, the same height the panel's "terrain max grade" uses). If that area hasn't been seen by the map yet and the chunk isn't loaded, it records **64** for now, and switches to the real height once Xaero has explored the area (or the chunk has been loaded).
 
-**How to change it**: hover a vertex and **double-click**; an input box appears next to it:
-
-| Key | Action |
-|---|---|
-| Digits / minus sign | Type (the box opens fully selected, so the first digit replaces the old value) |
-| Backspace | Delete one character |
-| Enter | Confirm |
-| Esc | Cancel |
-| Clicking elsewhere on the map | Same as Enter (confirm) |
+**How to change it**: hover a vertex and **double-click**; a box appears next to it and its first row is `Y`: digits / minus to type (fully selected on open, so the first digit replaces the old value), Backspace deletes, `Enter` saves, `Esc` cancels, clicking elsewhere on the map saves too. The same box has `名字` (name) and `类型` (kind) rows — see [6.4](#64-point-names-point-kinds-and-line-colours).
 
 ![Double-click a vertex to set its Y](point-y.png)
 
@@ -230,6 +224,43 @@ So with the default value equal to the ground height, the line basically still w
 > A common sight: one point on a summit, one at the foot of the hill, very close together, and the moment you change a Y the panel goes red all over. The maths isn't wrong — the grade you asked for simply exceeds the limit. Pull the points apart, or accept tunnels/bridges.
 
 Code: `Anchor` (each point carries y, manual, resolved), `VerticalProfile` (pure geometry, unit-tested by `tools/vertical-check.sh`).
+
+### 6.4 Point names, point kinds and line colours
+
+**A point's name and kind** live in the box you open by double-clicking a vertex. Three rows:
+
+| Row | How |
+|---|---|
+| `Y` | digits / minus, Backspace; fully selected on open, so the first digit replaces the old value |
+| `名字` (name) | just type (ASCII through key codes, CJK through your IME or `Ctrl+V` paste), up to 24 characters |
+| `类型` (kind) | `←` `→` cycles the six kinds below |
+
+`Tab` / `Shift+Tab` (or `↑` `↓`) moves between rows, `Enter` saves, `Esc` cancels, and clicking elsewhere on the map saves as well.
+
+The kind decides how the point is drawn on the map and in the world:
+
+| Kind | Icon | Use it for |
+|---|---|---|
+| Plain (普通点) | white square | just a bend in the line |
+| Station (车站) | blue disc | platforms, passing loops |
+| Curve control (弯道控制点) | purple diamond | a bend the line has to make, no structure |
+| Tunnel portal (隧道口) | orange triangle | entering / leaving a tunnel |
+| Bridge (桥梁) | teal bar | crossing a river or a valley |
+| Signal (信号机) | red cross | block boundaries, meets |
+
+An unnamed point shows as "点 N"; a named one shows its name as the first tooltip line, next to the vertex on the map (above 0.4 px/block) and on the 3D label in the world as well.
+
+**Line name and colour**: double-click the name row in the panel ("线 4 · 6 点 · R 24") to open the line box.
+
+| Row | How |
+|---|---|
+| `名字` | type it, up to 24 characters |
+| `色板` (swatches) | click one of the 12 presets; `←` `→` turns the hue by 5° |
+| `RGB` | `←` `→` picks the channel, digits fill 0–255 |
+
+`Tab` cycles the rows, and the mouse can click the swatches and the hue bar directly. In collapsed mode the name on the single-line panel opens the same box.
+
+New lines don't need you to pick a colour: they take one from the 7-colour palette in creation order, and whatever you change sticks to that line (it is saved and synced).
 
 ---
 
@@ -355,7 +386,7 @@ The same server on a different port counts as **the same** world (one shared cop
 
 `@json
 {
-  "version": 2,
+  "version": 3,
   "world": "sp_railplanner_test",
   "routes": [
     {
@@ -363,7 +394,8 @@ The same server on a different port counts as **the same** world (one shared cop
       "name": "线 1",
       "color": -52429,
       "radius": 24.0,
-      "anchors": [[120, -340, 71, 2], [168, -332, 74, 2], [210, -300, 68, 0]]
+      "anchors": [[120, -340, 71, 2], [168, -332, 258, 2], [210, -300, 68, 0]],
+      "anchorNames": ["", "东站", ""]
     }
   ]
 }
@@ -372,8 +404,9 @@ The same server on a different port counts as **the same** world (one shared cop
 | Field | Notes |
 |---|---|
 | `radius` | Circular-curve radius of this route; 0 or a missing key falls back to 24 |
-| `anchors` | Anchors as `[x, z, y, flags]`: `y` is that point's elevation, bit0 of the flags = set by hand, bit1 = a real ground height has been sampled (since 0.7.0). Old saves only have `[x, z]`; they load as "not resolved yet" and get their real height as soon as the map opens |
-| `color` | Line colour, taken from a 7-colour palette in creation order; hand-edit it to change the colour |
+| `anchors` | Anchors as `[x, z, y, flags]`: `y` is that point's elevation; bit0 of the flags = set by hand, bit1 = a real ground height has been sampled (since 0.7.0), bit8 and up = the point's kind (since 0.8.0: 0 plain / 1 station / 2 curve control / 3 tunnel portal / 4 bridge / 5 signal). Old saves only have `[x, z]`; they load as "not resolved yet" and get their real height as soon as the map opens |
+| `anchorNames` | Point names indexed like `anchors` (since 0.8.0); an empty string means unnamed. Older files have no such column |
+| `color` | Line colour (ARGB); new lines take one from the 7-colour palette in creation order, and double-clicking the panel's name row changes it |
 | `name` | Display name |
 
 **When it writes to disk:** at most 5 seconds after a change; finishing with `Enter`, releasing a drag and closing the map (`Esc`) all write immediately. Routes installed by server sync take the same write path.
@@ -577,7 +610,7 @@ Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so t
 ./gradlew25 build          # do not use ./gradlew: the global ~/.gradle/gradle.properties pins the JVM to java-21
 ```
 
-Output: `build/libs/railplanner-0.6.1.jar`.
+Output: `build/libs/railplanner-0.8.0.jar`.
 
 ### Self-checks and debugging
 
@@ -841,4 +874,4 @@ Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first l
 
 Note: when `!!railupdate check` finds a new version it **also restarts according to the config**; to swap without restarting, turn `auto_restart` off first and then check.
 
-> Protocol: since 0.7.0 the sync protocol is **2** (anchors carry Y). A 0.6.x client connecting to a 0.7.0 server shows "protocol mismatch（协议不兼容）" and uses local data only — upgrade both ends together.
+> Protocol: since **0.8.0** the sync protocol is **3** (anchors carry Y and a point kind, plus the `anchorNames` list). A 0.7.x or older client connecting to a 0.8.x server shows "protocol mismatch（协议不兼容）" and uses local data only — upgrade both ends together.

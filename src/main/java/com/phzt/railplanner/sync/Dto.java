@@ -21,9 +21,10 @@ public final class Dto {
     /**
      * 协议版本。客户端和服务端对不上就不同步，各留各的本地数据。
      *
-     * <p>2：锚点带上 Y 和标记位（{@code [x, z, y, flags]}），0.6.x 的 [x, z] 读进来当「还没解析」。</p>
+     * <p>2：锚点带上 Y 和标记位（{@code [x, z, y, flags]}），0.6.x 的 [x, z] 读进来当「还没解析」。<br>
+     * 3：点的名字（{@code anchorNames}，与锚点同下标）和点的类型（flags 的 bit8 起）。</p>
      */
-    public static final int PROTO = 2;
+    public static final int PROTO = 3;
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final Gson COMPACT = new Gson();
@@ -39,6 +40,8 @@ public final class Dto {
         public double radius = 24.0;
         public long updatedAt;
         public List<int[]> anchors = new ArrayList<>();
+        /** 与 anchors 同下标的点名字，空字符串表示没起名；老客户端不带这个字段。 */
+        public List<String> anchorNames = new ArrayList<>();
 
         public Route() {
         }
@@ -55,6 +58,7 @@ public final class Dto {
             m.put("color", color);
             m.put("radius", clean(radius));
             m.put("anchors", anchors);
+            m.put("anchorNames", anchorNames);
             return sha256(COMPACT.toJson(m));
         }
     }

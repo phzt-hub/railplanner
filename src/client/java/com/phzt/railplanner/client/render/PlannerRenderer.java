@@ -6,6 +6,7 @@ import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.geom.Vec2;
 import com.phzt.railplanner.client.model.Anchor;
+import com.phzt.railplanner.client.model.PointKind;
 import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.planner.RouteStats;
@@ -28,6 +29,22 @@ public final class PlannerRenderer {
     private static final int WARN = 0xFFFF6E6E;
     private static final int CAUTION = 0xFFFFB74D;
     /** 隧道/桥占已判长度的比例超过这个数（且超过 32 格）就算工程偏大。 */
+    /** 上一帧画出来的「线名」文字框，双击它改名字和颜色。 */
+    private static int nameX;
+    private static int nameY;
+    private static int nameW;
+    private static int nameH;
+    private static RailRoute nameRoute;
+
+    /** 上一帧画出来的色板 / 色相条，点它们改颜色。 */
+    private static final int[] SWATCH_X = new int[12];
+    private static int swatchY;
+    private static int swatchSize = 14;
+    private static int hueX;
+    private static int hueY;
+    private static int hueW;
+    private static int hueH;
+
     private static final double TUNNEL_BRIDGE_WARN_SHARE = 0.35;
     private static final double WARN_MIN_LENGTH = 32.0;
 
@@ -36,8 +53,11 @@ public final class PlannerRenderer {
 
     public static void render(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY,
                               List<RailRoute> routes, RailRoute current, int hoverIndex, int dragIndex) {
+        nameRoute = null;
+        RailRoute shown = Planner.displayRoute();
         for (RailRoute route : routes) {
             drawRoute(g, view, route, route == current);
+            drawRouteName(g, view, route, route == shown);
         }
         if (current != null) {
             drawCells(g, view, current);
@@ -46,7 +66,6 @@ public final class PlannerRenderer {
         }
         if (Planner.isActive()) {
             // 面板跟世界里的 3D 线看同一条：没在编辑时退回最后那条。
-            RailRoute shown = Planner.displayRoute();
             if (RailConfig.get().hudCollapsed) {
                 drawHudCollapsed(g, shown);
             } else {
@@ -54,7 +73,8 @@ public final class PlannerRenderer {
             }
             drawHover(g, view, mouseX, mouseY, current);
             drawNotice(g, view);
-            drawYEditor(g, view, current);
+            drawPointEditor(g, view, current);
+            drawRouteEditor(g, view);
         } else if (!routes.isEmpty()) {
             Font font = Minecraft.getInstance().font;
             badge(g, font, 6, 6, RailConfig.get().hotkeysOff
@@ -116,19 +136,106 @@ public final class PlannerRenderer {
     }
 
     private static void drawVertices(GuiGraphicsExtractor g, MapView view, RailRoute route, int hover, int drag) {
+        Font font = Minecraft.getInstance().font;
+        boolean nameable = view.pixelsPerBlock() >= 0.4;
         for (int i = 0; i < route.anchors.size(); i++) {
             Anchor a = route.anchors.get(i);
             double x = view.guiX(a.x() + 0.5);
             double y = view.guiY(a.z() + 0.5);
-            if (x < -10 || y < -10 || x > view.width() + 10 || y > view.height() + 10) {
+            if (x < -14 || y < -14 || x > view.width() + 14 || y > view.height() + 14) {
                 continue;
             }
-            int r = (i == drag) ? 5 : (i == hover ? 5 : 3);
-            int color = (i == drag) ? 0xFFFFD740 : (i == hover ? 0xFFFFFFFF : 0xFF202020);
-            g.fill((int) x - r, (int) y - r, (int) x - r + r * 2, (int) y - r + r * 2, color);
-            g.fill((int) x - r + 1, (int) y - r + 1, (int) x - r + r * 2 - 1, (int) y - r + r * 2 - 1,
-                    0xFF000000 | (route.color & 0xFFFFFF));
+            boolean active = i == drag || i == hover;
+            drawIcon(g, (int) Math.round(x), (int) Math.round(y), a.kind(), active);
+            if (nameable && !a.name().isEmpty()) {
+                int tx = (int) Math.round(x) + 8;
+                int ty = (int) Math.round(y) - 13;
+                int w = font.width(a.name());
+                g.fill(tx - 2, ty - 1, tx + w + 2, ty + 10, 0xA0101418);
+                g.text(font, a.name(), tx, ty, active ? 0xFFFFFFFF : 0xFFD8E0E6);
+            }
         }
+    }
+
+    /** 点的图标：类型决定形状，选中/悬停时放大一圈。 */
+    private static void drawIcon(GuiGraphicsExtractor g, int cx, int cy, PointKind kind, boolean active) {
+        int r = active ? 6 : 5;
+        int dark = 0xFF101418;
+        int color = 0xFF000000 | (kind.color & 0xFFFFFF);
+        switch (kind) {
+            case STATION -> {
+                disc(g, cx, cy, r, dark);
+                disc(g, cx, cy, r - 1, color);
+                disc(g, cx, cy, Math.max(1, r - 3), 0xFFFFFFFF);
+            }
+            case CURVE -> {
+                diamond(g, cx, cy, r + 1, dark);
+                diamond(g, cx, cy, r, color);
+            }
+            case TUNNEL -> {
+                triangle(g, cx, cy, r + 1, dark);
+                triangle(g, cx, cy, r, color);
+            }
+            case BRIDGE -> {
+                g.fill(cx - r - 1, cy - 2, cx + r + 2, cy + 3, dark);
+                g.fill(cx - r, cy - 1, cx + r + 1, cy + 2, color);
+            }
+            case SIGNAL -> {
+                thickLine(g, cx - r, cy - r, cx + r, cy + r, dark, 4);
+                thickLine(g, cx - r, cy + r, cx + r, cy - r, dark, 4);
+                thickLine(g, cx - r, cy - r, cx + r, cy + r, color, 2);
+                thickLine(g, cx - r, cy + r, cx + r, cy - r, color, 2);
+            }
+            default -> {
+                g.fill(cx - r, cy - r, cx + r + 1, cy + r + 1, dark);
+                g.fill(cx - r + 1, cy - r + 1, cx + r, cy + r, 0xFF000000 | (0xE6E6E6 & 0xFFFFFF));
+            }
+        }
+        if (kind != PointKind.PLAIN) {
+            g.fill(cx - r - 1, cy - r - 1, cx - r, cy - r, dark);
+        }
+    }
+
+    private static void disc(GuiGraphicsExtractor g, int cx, int cy, int r, int color) {
+        for (int dy = -r; dy <= r; dy++) {
+            int half = (int) Math.sqrt(Math.max(0, r * r - dy * dy));
+            g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, color);
+        }
+    }
+
+    private static void diamond(GuiGraphicsExtractor g, int cx, int cy, int r, int color) {
+        for (int dy = -r; dy <= r; dy++) {
+            int half = r - Math.abs(dy);
+            g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, color);
+        }
+    }
+
+    private static void triangle(GuiGraphicsExtractor g, int cx, int cy, int r, int color) {
+        for (int dy = -r; dy <= r; dy++) {
+            int half = (dy + r) * r / (2 * r + 1);
+            g.fill(cx - half, cy + dy, cx + half + 1, cy + dy + 1, color);
+        }
+    }
+
+    /** 线名挂在线中间：2D 地图上常显，别的线淡一点。 */
+    private static void drawRouteName(GuiGraphicsExtractor g, MapView view, RailRoute route, boolean shown) {
+        String text = route.name == null ? "" : route.name;
+        Alignment al = route.alignment();
+        if (text.isEmpty() || al.length() < 1.0) {
+            return;
+        }
+        Vec2 p = al.pointAt(al.length() * 0.5);
+        double x = view.guiX(p.x);
+        double y = view.guiY(p.z);
+        if (x < -80 || y < -20 || x > view.width() + 80 || y > view.height() + 20) {
+            return;
+        }
+        Font font = Minecraft.getInstance().font;
+        int w = font.width(text);
+        int tx = (int) Math.round(x) - w / 2;
+        int ty = (int) Math.round(y) - 16;
+        g.fill(tx - 3, ty - 2, tx + w + 3, ty + 11, shown ? 0xC0101418 : 0x90101418);
+        g.text(font, text, tx, ty, shown ? 0xFFFFF3C4 : 0xFFAAB4BE);
     }
 
     private static void drawRubberBand(GuiGraphicsExtractor g, MapView view, RailRoute route, int mouseX, int mouseY) {
@@ -194,11 +301,12 @@ public final class PlannerRenderer {
                         RouteStats.time(st.secondsAt8), RouteStats.time(st.secondsAt4)), TEXT);
             }
         }
-        add(lines, colors, "左键加点/拖顶点 · 右键删点 · 双击顶点改 Y · "
+        add(lines, colors, "左键加点/拖顶点 · Ctrl+左键在线上插点 · 右键删点 · "
                 + RailPlannerClient.keyName(RailPlannerClient.FINISH) + " 完成 · "
                 + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
                 + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
                 + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 折叠", DIM);
+        add(lines, colors, "双击顶点改 Y/名字/类型 · 双击上面那行线名改名字与颜色", DIM);
 
         boolean locked = RailConfig.get().anchorLock;
         add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 世界里的 3D 线 · "
@@ -225,6 +333,13 @@ public final class PlannerRenderer {
         ty += lineH + 3;
         for (int i = 0; i < lines.size(); i++) {
             g.text(font, lines.get(i), tx, ty, colors.get(i));
+            if (i == 0 && current != null) {
+                nameX = tx;
+                nameY = ty;
+                nameW = font.width(current.name == null ? "" : current.name);
+                nameH = 10;
+                nameRoute = current;
+            }
             ty += lineH;
         }
         if (st != null) {
@@ -280,6 +395,13 @@ public final class PlannerRenderer {
         int ty = y + 6;
         for (int i = 0; i < texts.size(); i++) {
             g.text(font, texts.get(i), tx, ty, colors.get(i));
+            if (i == 0 && current != null) {
+                nameX = tx;
+                nameY = ty;
+                nameW = font.width(current.name == null ? "" : current.name);
+                nameH = 10;
+                nameRoute = current;
+            }
             tx += font.width(texts.get(i));
         }
     }
@@ -289,12 +411,14 @@ public final class PlannerRenderer {
         Font font = Minecraft.getInstance().font;
         Alignment al = current == null ? null : current.alignment();
         // 正在改 Y 的时候不弹顶点提示：两个框会叠在一起，数字被坐标盖住。
-        if (current != null && !Planner.isEditingY() && Planner.hoverIndex >= 0
+        if (current != null && !Planner.isEditing() && Planner.hoverIndex >= 0
                 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
-            tooltip(g, font, mouseX + 12, mouseY - 17, "点 " + (Planner.hoverIndex + 1) + "  ("
-                    + a.x() + ", " + a.y() + ", " + a.z() + ")");
-            tooltip(g, font, mouseX + 12, mouseY - 4, a.manual() ? "双击改 Y（手填）" : "双击改 Y");
+            String title = a.name().isEmpty() ? ("点 " + (Planner.hoverIndex + 1)) : a.name();
+            tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label);
+            tooltip(g, font, mouseX + 12, mouseY - 17, "(" + a.x() + ", " + a.y() + ", " + a.z() + ")"
+                    + (a.manual() ? " · 手填" : ""));
+            tooltip(g, font, mouseX + 12, mouseY - 4, "双击改 Y / 名字 / 类型");
         }
         Alignment.Corner near = nearestCorner(al, view, mouseX, mouseY);
         if (near != null) {
@@ -394,36 +518,229 @@ public final class PlannerRenderer {
         }
     }
 
-    /** 双击顶点之后浮在旁边的 Y 输入框。 */
-    private static void drawYEditor(GuiGraphicsExtractor g, MapView view, RailRoute route) {
+    /** 双击顶点之后浮在旁边的编辑框：Y、名字、类型三行。 */
+    private static void drawPointEditor(GuiGraphicsExtractor g, MapView view, RailRoute route) {
         int index = Planner.editIndex();
         if (route == null || index < 0 || index >= route.anchors.size()) {
             return;
         }
         Font font = Minecraft.getInstance().font;
         Anchor a = route.anchors.get(index);
-        String head = "点 " + (index + 1) + " 的 Y";
-        String value = Planner.editText();
-        String hint = "回车确认 · Esc 取消 · 退格删一个";
-        int w = Math.max(font.width(head), Math.max(font.width(value) + 26, font.width(hint))) + 18;
-        int h = 48;
-        int x = (int) view.guiX(a.x() + 0.5) + 12;
-        int y = (int) view.guiY(a.z() + 0.5) - 20;
+        int row = Planner.editRow();
+        String head = "点 " + (index + 1) + " · " + Planner.editKind().label;
+        String hint = "Tab 换行 · ← → 换类型 · 回车保存 · Esc 取消";
+        int w = Math.max(278, font.width(hint) + 18);
+        int h = 86;
+        int anchorX = (int) view.guiX(a.x() + 0.5);
+        int anchorY = (int) view.guiY(a.z() + 0.5);
+        int x = anchorX + 14;
+        int y = anchorY - 24;
         if (x + w > view.width() - 4) {
-            x = (int) view.guiX(a.x() + 0.5) - w - 12;
+            x = anchorX - w - 14;
         }
-        x = Math.max(4, x);
-        y = Math.max(4, Math.min(y, view.height() - h - 4));
+        x = Math.max(4, Math.min(x, Math.max(4, view.width() - w - 4)));
+        y = Math.max(4, Math.min(y, Math.max(4, view.height() - h - 4)));
         panel(g, x, y, w, h);
-        g.text(font, head, x + 9, y + 6, TITLE);
-        // 输入框：黑底、白字、后面一根一直亮着的竖线当光标
-        int boxTop = y + 19;
-        int boxW = font.width(value) + 12;
-        g.fill(x + 9, boxTop, x + 9 + Math.max(24, boxW), boxTop + 13, 0xCC000000);
-        g.text(font, value, x + 14, boxTop + 3, 0xFFFFFFFF);
-        int caret = x + 14 + font.width(value) + 1;
-        g.fill(caret, boxTop + 3, caret + 1, boxTop + 11, ACCENT);
-        g.text(font, hint, x + 9, y + 35, DIM);
+        g.text(font, head, x + 9, y + 5, TITLE);
+        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "Y", Planner.editYText());
+        rowLine(g, font, x + 9, y + 38, w - 18, row == 1, "名字", Planner.editNameText());
+        rowLine(g, font, x + 9, y + 57, w - 18, row == 2, "类型",
+                "◀ " + Planner.editKind().label + " ▶");
+        g.text(font, hint, x + 9, y + 74, DIM);
+    }
+
+    /** 一行「标签 + 输入框」，当前行高亮并带光标。 */
+    private static void rowLine(GuiGraphicsExtractor g, Font font, int x, int y, int w, boolean active,
+            String label, String value) {
+        int boxX = x + 36;
+        int boxW = w - 36;
+        g.fill(boxX, y - 1, boxX + boxW, y + 12, active ? 0xE6000000 : 0xC8000000);
+        if (active) {
+            g.fill(boxX, y - 1, boxX + boxW, y, ACCENT);
+            g.fill(boxX, y + 11, boxX + boxW, y + 12, ACCENT);
+        }
+        g.text(font, label, x, y + 2, active ? ACCENT : DIM);
+        String shown = value == null ? "" : value;
+        g.text(font, shown, boxX + 4, y + 2, 0xFFFFFFFF);
+        if (active) {
+            int caret = boxX + 5 + font.width(shown);
+            g.fill(caret, y + 2, caret + 1, y + 10, ACCENT);
+        }
+    }
+
+    /** 双击面板上那行线名之后弹出的框：名字 + 色板 + 色相条 + RGB。 */
+    private static void drawRouteEditor(GuiGraphicsExtractor g, MapView view) {
+        if (!Planner.isEditingRoute()) {
+            return;
+        }
+        Font font = Minecraft.getInstance().font;
+        int w = 330;
+        int h = 118;
+        int x = Math.max(4, (view.width() - w) / 2);
+        int y = Math.max(4, (view.height() - h) / 2);
+        panel(g, x, y, w, h);
+        g.text(font, "线路属性", x + 9, y + 5, TITLE);
+        g.text(font, "Tab 换行 · ← → 调色相 · 回车保存 · Esc 取消", x + 62, y + 5, DIM);
+
+        int row = Planner.routeRow();
+        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "名字", Planner.routeNameText());
+
+        // 色板：一排 12 个色块
+        swatchSize = 16;
+        swatchY = y + 40;
+        int sx = x + 45;
+        g.text(font, "色板", x + 9, swatchY + 4, row == 1 ? ACCENT : DIM);
+        for (int i = 0; i < SWATCH_X.length; i++) {
+            SWATCH_X[i] = sx + i * (swatchSize + 3);
+            int color = 0xFF000000 | Planner.COLOR_PRESETS[i];
+            g.fill(SWATCH_X[i] - 1, swatchY - 1, SWATCH_X[i] + swatchSize + 1, swatchY + swatchSize + 1,
+                    row == 1 ? 0xFFB0BEC5 : 0xFF101418);
+            g.fill(SWATCH_X[i], swatchY, SWATCH_X[i] + swatchSize, swatchY + swatchSize, color);
+            if ((Planner.routeColor() & 0xFFFFFF) == Planner.COLOR_PRESETS[i]) {
+                g.fill(SWATCH_X[i] + 5, swatchY + 5, SWATCH_X[i] + swatchSize - 5, swatchY + 5 + 1, 0xFF000000);
+                g.fill(SWATCH_X[i] + 5, swatchY + swatchSize - 6, SWATCH_X[i] + swatchSize - 5,
+                        swatchY + swatchSize - 5, 0xFF000000);
+            }
+        }
+
+        // 色相条：当前颜色占一格，拖它换色相
+        hueX = x + 45;
+        hueY = y + 62;
+        hueW = 200;
+        hueH = 10;
+        for (int i = 0; i < hueW; i++) {
+            float[] hsb = toHsb(Planner.routeColor());
+            int color = fromHsb(i / (float) hueW, Math.max(0.55f, hsb[1]), Math.max(0.65f, hsb[2]));
+            g.fill(hueX + i, hueY, hueX + i + 1, hueY + hueH, 0xFF000000 | color);
+        }
+        g.text(font, "色相", x + 9, hueY, row == 1 ? ACCENT : DIM);
+        float[] now = toHsb(Planner.routeColor());
+        int marker = hueX + Math.round(now[0] * (hueW - 1));
+        g.fill(marker - 1, hueY - 2, marker + 2, hueY + hueH + 2, 0xFFFFFFFF);
+        g.fill(x + 252, hueY - 2, x + 268, hueY + hueH + 2, 0xFF000000 | (Planner.routeColor() & 0xFFFFFF));
+
+        // RGB 行
+        String[] labels = {"R", "G", "B"};
+        int rx = x + 45;
+        g.text(font, "RGB", x + 9, y + 78, row == 2 ? ACCENT : DIM);
+        for (int i = 0; i < 3; i++) {
+            boolean active = row == 2 && Planner.routeChannel() == i;
+            String text = labels[i] + " " + Planner.routeChannelText(i);
+            int tw = font.width(text) + 10;
+            g.fill(rx, y + 76, rx + tw, y + 89, active ? 0xE6000000 : 0xC0000000);
+            g.text(font, text, rx + 4, y + 78, active ? 0xFFFFFFFF : 0xFFB0BEC5);
+            rx += tw + 8;
+        }
+        g.text(font, "#" + String.format("%06X", Planner.routeColor() & 0xFFFFFF), x + 250, y + 78, DIM);
+    }
+
+    private static float[] toHsb(int rgb) {
+        float r = ((rgb >> 16) & 0xFF) / 255.0f;
+        float gg = ((rgb >> 8) & 0xFF) / 255.0f;
+        float b = (rgb & 0xFF) / 255.0f;
+        float max = Math.max(r, Math.max(gg, b));
+        float min = Math.min(r, Math.min(gg, b));
+        float d = max - min;
+        float hue = 0;
+        if (d > 0.0001f) {
+            if (max == r) {
+                hue = ((gg - b) / d) % 6.0f;
+            } else if (max == gg) {
+                hue = (b - r) / d + 2.0f;
+            } else {
+                hue = (r - gg) / d + 4.0f;
+            }
+            hue /= 6.0f;
+        }
+        if (hue < 0) {
+            hue += 1.0f;
+        }
+        return new float[]{hue % 1.0f, max <= 0 ? 0 : d / max, max};
+    }
+
+    private static int fromHsb(float hue, float sat, float bri) {
+        float hh = (hue - (float) Math.floor(hue)) * 6.0f;
+        int i = (int) Math.floor(hh);
+        float f = hh - i;
+        float p = bri * (1 - sat);
+        float q = bri * (1 - sat * f);
+        float t = bri * (1 - sat * (1 - f));
+        float r;
+        float gg;
+        float b;
+        switch (i % 6) {
+            case 0 -> {
+                r = bri;
+                gg = t;
+                b = p;
+            }
+            case 1 -> {
+                r = q;
+                gg = bri;
+                b = p;
+            }
+            case 2 -> {
+                r = p;
+                gg = bri;
+                b = t;
+            }
+            case 3 -> {
+                r = p;
+                gg = q;
+                b = bri;
+            }
+            case 4 -> {
+                r = t;
+                gg = p;
+                b = bri;
+            }
+            default -> {
+                r = bri;
+                gg = p;
+                b = q;
+            }
+        }
+        return (clamp255(r) << 16) | (clamp255(gg) << 8) | clamp255(b);
+    }
+
+    private static int clamp255(float v) {
+        return Math.max(0, Math.min(255, Math.round(v * 255.0f)));
+    }
+
+    /** 鼠标点到哪个色块；没点到返回 -1。 */
+    public static int hitSwatch(double mx, double my) {
+        if (!Planner.isEditingRoute()) {
+            return -1;
+        }
+        for (int i = 0; i < SWATCH_X.length; i++) {
+            if (mx >= SWATCH_X[i] && mx <= SWATCH_X[i] + swatchSize
+                    && my >= swatchY && my <= swatchY + swatchSize) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** 鼠标点到色相条上的哪个比例；没点到返回 -1。 */
+    public static double hitHue(double mx, double my) {
+        if (!Planner.isEditingRoute() || hueW <= 0) {
+            return -1;
+        }
+        if (mx < hueX - 4 || mx > hueX + hueW + 4 || my < hueY - 6 || my > hueY + hueH + 6) {
+            return -1;
+        }
+        return Math.max(0, Math.min(1, (mx - hueX) / (double) hueW));
+    }
+
+    /** 鼠标是不是停在那行线名上（双击它改名字和颜色）。 */
+    public static boolean hitName(double mx, double my) {
+        return nameRoute != null && nameW > 0
+                && mx >= nameX - 2 && mx <= nameX + nameW + 2
+                && my >= nameY - 2 && my <= nameY + nameH + 2;
+    }
+
+    public static RailRoute nameRoute() {
+        return nameRoute;
     }
 
     /** 地图中间下方那行一闪而过的提示（「点已锁定，拖不动」之类）。 */

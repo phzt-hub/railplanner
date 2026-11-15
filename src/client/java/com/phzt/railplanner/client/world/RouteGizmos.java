@@ -184,7 +184,9 @@ public final class RouteGizmos {
             }
             if (labels < MAX_LABELS) {
                 labels++;
-                GizmoProperties text = Gizmos.billboardText(String.valueOf(i + 1),
+                String label = a.name().isEmpty() ? String.valueOf(i + 1)
+                        : (i + 1) + " " + a.name();
+                GizmoProperties text = Gizmos.billboardText(label,
                         new Vec3(cx, high + 3.4, cz), TextGizmo.Style.forColorAndCentered(color));
                 if (onTop) {
                     text.setAlwaysOnTop();

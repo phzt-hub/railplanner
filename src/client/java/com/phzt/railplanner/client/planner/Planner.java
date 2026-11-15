@@ -4,7 +4,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
+import com.phzt.railplanner.client.geom.Vec2;
 import com.phzt.railplanner.client.model.Anchor;
+import com.phzt.railplanner.client.model.PointKind;
 import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.model.RouteStore;
 import com.phzt.railplanner.client.render.MapView;
@@ -21,6 +23,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
@@ -47,11 +50,32 @@ public final class Planner {
     public static int dragIndex = -1;
     public static int hoverIndex = -1;
 
-    /** 正在改 Y 的那个点；-1 表示编辑框没开。 */
-    private static int yEditIndex = -1;
-    private static String yEditText = "";
-    /** 编辑框刚打开时是「全选」状态：敲第一个数字直接换掉原来的值。 */
-    private static boolean yEditReplace;
+    /** 点位编辑框：-1 表示没开。 */
+    private static int editIndex = -1;
+    /** 点位编辑框停在那一行：0 = Y，1 = 名字，2 = 类型。 */
+    private static int editRow;
+    private static String editY = "";
+    private static String editName = "";
+    private static PointKind editKind = PointKind.PLAIN;
+    /** Y 行刚打开时是「全选」状态：敲第一个数字直接换掉原来的值。 */
+    private static boolean editReplace;
+
+    /** 线路编辑框（名字 + 颜色）：行 0 = 名字，1 = 色板，2 = RGB 输入。 */
+    private static boolean routeEditOpen;
+    private static RailRoute routeEditTarget;
+    private static String routeEditName = "";
+    private static int routeEditRow;
+    /** RGB 模式里三个通道各自的字。 */
+    private static final String[] routeChannels = {"255", "255", "255"};
+    private static int routeChannel;
+    /** 编辑框里正在用的颜色（0xRRGGBB）。 */
+    private static int routeColor = 0x4FC3F7;
+
+    /** 色板上那 12 个预设色（0xRRGGBB）。 */
+    public static final int[] COLOR_PRESETS = {
+            0xFF5252, 0xFF8A65, 0xFFD740, 0xD4E157, 0x69F0AE, 0x40C4FF,
+            0x448AFF, 0x7C4DFF, 0xFF80AB, 0xFFFFFF, 0xB0BEC5, 0x212121
+    };
     /** 这一版的按键是 SDL 扫描码：数字行 1..9 是 30..38、0 是 39；小键盘 1..9 是 89..97、0 是 98，回车 88。 */
     private static final int SCAN_1 = 30;
     private static final int SCAN_9 = 38;
@@ -345,8 +369,9 @@ public final class Planner {
         }
         Anchor added = anchorAt(mapProcessor(), bx, bz);
         current.anchors.add(added);
-        LOG.info("加点 {},{} → Y {}{}", added.x(), added.z(), added.y(),
-                added.manual() ? "（手填）" : (added.resolved() ? "" : "（地面没探明，先用 64）"));
+        LOG.info("加点 {},{} → Y {}（地图 {} / 区块 {}{}）", added.x(), added.z(), added.y(),
+                mapHeight(bx, bz), RouteStats.columnHeight(bx, bz),
+                added.manual() ? "，手填" : (added.resolved() ? "" : "，地面没探明先用 64"));
         markDirty();
     }
 
@@ -367,8 +392,8 @@ public final class Planner {
             if (old.x() != bx || old.z() != bz) {
                 // 手填过 Y 的点只换位置、标高留着；其余的点在新的一列上重新取地面高度。
                 current.anchors.set(dragIndex, old.manual()
-                        ? Anchor.manual(bx, bz, old.y())
-                        : anchorAt(mp, bx, bz));
+                        ? old.at(bx, bz)
+                        : anchorAt(mp, bx, bz).withName(old.name()).withKind(old.kind()));
                 markDirty();
             }
         }
@@ -381,19 +406,51 @@ public final class Planner {
         PlannerRenderer.render(g, view, mouseX, mouseY, routes, current, hoverIndex, dragIndex);
     }
 
-    public static boolean onClick(MapView view, int button, double gx, double gy, boolean doubleClick) {
+    public static boolean onClick(MapView view, int button, double gx, double gy, boolean doubleClick,
+            boolean ctrl) {
         if (RailConfig.get().hotkeysOff || !active) {
             return false;
         }
-        if (isEditingY()) {
-            // 编辑框开着时点地图 = 确认框里这个数，别顺手又加一个点。
-            commitYEdit();
+        if (isEditing()) {
+            // 编辑框开着时点地图 = 确认框里这些，别顺手又加一个点。
+            commitPointEditor();
             return true;
+        }
+        if (routeEditOpen) {
+            if (button == 1) {
+                int swatch = PlannerRenderer.hitSwatch(gx, gy);
+                if (swatch >= 0) {
+                    pickPreset(swatch);
+                    return true;
+                }
+                double hue = PlannerRenderer.hitHue(gx, gy);
+                if (hue >= 0) {
+                    setHue(hue);
+                    return true;
+                }
+            }
+            commitRouteEditor();
+            return true;
+        }
+        if (button == 1) {
+            if (PlannerRenderer.hitName(gx, gy)) {
+                // 第一下就吃掉：不然双击线名会先在地图上加一个点。
+                if (doubleClick) {
+                    RailRoute named = PlannerRenderer.nameRoute();
+                    if (named != null) {
+                        openRouteEditor(named);
+                    }
+                }
+                return true;
+            }
+            if (ctrl && insertOnLine(view, gx, gy)) {
+                return true;
+            }
         }
         int hit = hitVertex(view, current, gx, gy);
         if (button == 1) {
             if (doubleClick && hit >= 0) {
-                openYEditor(hit);
+                openPointEditor(hit);
                 return true;
             }
             if (hit >= 0) {
@@ -425,6 +482,11 @@ public final class Planner {
         }
         if (button != 1) {
             return false;
+        }
+        if (isEditing() || routeEditOpen) {
+            dragIndex = -1;
+            clickPending = false;
+            return true;
         }
         if (dragIndex >= 0) {
             dragIndex = -1;
@@ -477,8 +539,11 @@ public final class Planner {
         if (RailConfig.get().hotkeysOff) {
             return false;
         }
-        if (isEditingY()) {
-            return editKey(event);
+        if (isEditing()) {
+            return pointEditKey(event);
+        }
+        if (routeEditOpen) {
+            return routeEditKey(event);
         }
         if (!active) {
             // 地图里再按一次「规划模式」键可以重新进入
@@ -562,7 +627,8 @@ public final class Planner {
     public static void notifyHotkeysOff() {
         boolean off = RailConfig.get().hotkeysOff;
         if (off) {
-            cancelYEdit();
+            closePointEditor();
+            closeRouteEditor();
             active = false;
             dragIndex = -1;
             hoverIndex = -1;
@@ -589,26 +655,37 @@ public final class Planner {
         return h == XaeroTerrain.UNKNOWN ? new Anchor(x, z) : Anchor.auto(x, z, h);
     }
 
+    /** Xaero 地图数据里这一列的高度，没探过就是 {@link XaeroTerrain#UNKNOWN}（只给日志用）。 */
+    private static int mapHeight(int x, int z) {
+        MapProcessor mp = mapProcessor();
+        return mp == null ? XaeroTerrain.UNKNOWN : XaeroTerrain.height(mp, x, z);
+    }
+
     /**
      * 「存下来时还没探明」的点：等地图数据到了，把回落值换成那一列真实的地面高度。
-     * 手填过的点和已经解析过的点都不动。
+     * 手填过的点不动；已经解析过、标高也讲得通的点不动。
+     *
+     * <p>标高讲不通的点（比世界最底层还低、或者高过顶）也一并重算——那是 0.7.1 及以前
+     * 客户端拿空白高度图问高度留下的 -64，老存档里已经存下了。</p>
      */
     public static void resolveAnchors(MapProcessor mp) {
         if (mp == null) {
             return;
         }
+        ClientLevel level = mc().level;
         boolean changed = false;
         for (RailRoute route : routes) {
             for (int i = 0; i < route.anchors.size(); i++) {
                 Anchor a = route.anchors.get(i);
-                if (a.manual() || a.resolved()) {
+                if (a.manual() || (a.resolved() && RouteStats.plausibleY(level, a.y()))) {
                     continue;
                 }
                 int h = RouteStats.height(mp, a.x(), a.z());
-                if (h == XaeroTerrain.UNKNOWN) {
+                Anchor fixed = h == XaeroTerrain.UNKNOWN ? new Anchor(a.x(), a.z()) : Anchor.auto(a.x(), a.z(), h);
+                if (fixed.equals(a)) {
                     continue;
                 }
-                route.anchors.set(i, Anchor.auto(a.x(), a.z(), h));
+                route.anchors.set(i, fixed);
                 route.invalidate();
                 changed = true;
             }
@@ -619,127 +696,517 @@ public final class Planner {
         }
     }
 
-    public static boolean isEditingY() {
-        return yEditIndex >= 0 && current != null && yEditIndex < current.anchors.size();
+    // ---------------------------------------------------------------- 编辑框
+
+    /** 点位编辑框开没开。 */
+    public static boolean isEditing() {
+        return editIndex >= 0 && current != null && editIndex < current.anchors.size();
     }
 
-    /** 正在编辑的那个点的下标，没开编辑框就是 -1。 */
+    /** 点位编辑框正在改的那个点，没开就是 -1。 */
     public static int editIndex() {
-        return isEditingY() ? yEditIndex : -1;
+        return isEditing() ? editIndex : -1;
     }
 
-    /** 编辑框里现在的字。 */
-    public static String editText() {
-        return yEditText;
+    /** 点位编辑框停在哪一行：0 = Y，1 = 名字，2 = 类型。 */
+    public static int editRow() {
+        return editRow;
     }
 
-    private static void openYEditor(int index) {
+    public static String editYText() {
+        return editY;
+    }
+
+    public static String editNameText() {
+        return editName;
+    }
+
+    public static PointKind editKind() {
+        return editKind;
+    }
+
+    /** 线路编辑框开没开。 */
+    public static boolean isEditingRoute() {
+        return routeEditOpen;
+    }
+
+    /** 线路编辑框停在哪一行：0 = 名字，1 = 色板，2 = RGB。 */
+    public static int routeRow() {
+        return routeEditRow;
+    }
+
+    public static String routeNameText() {
+        return routeEditName;
+    }
+
+    public static int routeColor() {
+        return routeColor;
+    }
+
+    public static int routeChannel() {
+        return routeChannel;
+    }
+
+    public static String routeChannelText(int i) {
+        return i >= 0 && i < routeChannels.length ? routeChannels[i] : "";
+    }
+
+    private static void openPointEditor(int index) {
         if (current == null || index < 0 || index >= current.anchors.size()) {
             return;
         }
-        yEditIndex = index;
-        yEditText = String.valueOf(current.anchors.get(index).y());
-        yEditReplace = true;
+        closeRouteEditor();
+        Anchor a = current.anchors.get(index);
+        editIndex = index;
+        editRow = 0;
+        editY = String.valueOf(a.y());
+        editName = a.name();
+        editKind = a.kind();
+        editReplace = true;
     }
 
-    private static void cancelYEdit() {
-        if (yEditIndex >= 0) {
-            LOG.info("点的 Y：取消编辑");
-        }
-        yEditIndex = -1;
-        yEditText = "";
-        yEditReplace = false;
+    private static void closePointEditor() {
+        editIndex = -1;
+        editRow = 0;
+        editY = "";
+        editName = "";
+        editKind = PointKind.PLAIN;
+        editReplace = false;
     }
 
-    /** 回车 / 点地图别处：把框里的数写进这个点。空着或者不是整数就当没填。 */
-    private static void commitYEdit() {
-        int index = yEditIndex;
-        yEditIndex = -1;
-        yEditReplace = false;
+    /** 回车 / 点地图别处：把框里的东西写进这个点。 */
+    private static void commitPointEditor() {
+        int index = editIndex;
+        String yText = editY;
+        String name = editName;
+        PointKind kind = editKind;
+        closePointEditor();
         if (current == null || index < 0 || index >= current.anchors.size()) {
-            yEditText = "";
             return;
         }
-        String text = yEditText.trim();
-        yEditText = "";
-        if (text.isEmpty() || "-".equals(text)) {
+        Anchor a = current.anchors.get(index);
+        Anchor next = a;
+        String text = yText.trim();
+        if (!text.isEmpty() && !"-".equals(text)) {
+            try {
+                int value = Math.max(-1024, Math.min(1024, Integer.parseInt(text)));
+                if (value != a.y()) {
+                    next = next.withY(value);
+                }
+            } catch (NumberFormatException ignored) {
+                // 不是整数就当没填
+            }
+        }
+        String trimmed = name.trim();
+        if (!trimmed.equals(a.name())) {
+            next = next.withName(trimmed);
+        }
+        if (kind != a.kind()) {
+            next = next.withKind(kind);
+        }
+        if (next.equals(a)) {
             return;
         }
+        current.anchors.set(index, next);
+        markDirty();
+        LOG.info("点 {}：Y {} · 名字「{}」· {}（原 {} / {} / {}）", index + 1, next.y(), next.name(),
+                next.kind().label, a.y(), a.name().isEmpty() ? "没名字" : a.name(), a.kind().label);
+    }
+
+    /** 双击面板上那行线名：改名字和颜色。 */
+    private static void openRouteEditor(RailRoute route) {
+        if (route == null) {
+            return;
+        }
+        closePointEditor();
+        routeEditOpen = true;
+        routeEditTarget = route;
+        routeEditName = route.name == null ? "" : route.name;
+        routeEditRow = 0;
+        routeColor = route.color & 0xFFFFFF;
+        routeChannel = 0;
+        syncChannelsFromColor();
+        LOG.info("线路属性框：{}", route.name);
+    }
+
+    private static void closeRouteEditor() {
+        routeEditOpen = false;
+        routeEditTarget = null;
+        routeEditRow = 0;
+    }
+
+    private static void commitRouteEditor() {
+        RailRoute route = routeEditTarget;
+        String name = routeEditName.trim();
+        int color = routeColor & 0xFFFFFF;
+        closeRouteEditor();
+        if (route == null) {
+            return;
+        }
+        boolean changed = false;
+        if (!name.isEmpty() && !name.equals(route.name)) {
+            route.name = name;
+            changed = true;
+        }
+        int argb = 0xFF000000 | color;
+        if (argb != route.color) {
+            route.color = argb;
+            changed = true;
+        }
+        if (changed) {
+            markDirty();
+            LOG.info("线路属性：名字「{}」颜色 #{}", route.name, hex(color));
+        }
+    }
+
+    /** 色板上点一个（也接受数字键 1–9、0、-、=）。 */
+    public static void pickPreset(int index) {
+        if (index >= 0 && index < COLOR_PRESETS.length) {
+            routeColor = COLOR_PRESETS[index];
+            syncChannelsFromColor();
+        }
+    }
+
+    /** 色相滑条拖到 0..1 的哪个位置：色相换掉，饱和度与明度留着。 */
+    public static void setHue(double fraction) {
+        float[] hsb = toHsb(routeColor);
+        routeColor = fromHsb((float) Math.max(0, Math.min(1, fraction)), Math.max(0.25f, hsb[1]),
+                Math.max(0.35f, hsb[2]));
+        syncChannelsFromColor();
+    }
+
+    private static void syncChannelsFromColor() {
+        routeChannels[0] = String.valueOf((routeColor >> 16) & 0xFF);
+        routeChannels[1] = String.valueOf((routeColor >> 8) & 0xFF);
+        routeChannels[2] = String.valueOf(routeColor & 0xFF);
+    }
+
+    /** 把 RGB 行里那个通道的字读回颜色（空着当 0，超过 255 夹住）。 */
+    private static void applyChannel() {
         int value;
         try {
-            value = Integer.parseInt(text);
+            value = Integer.parseInt(routeChannels[routeChannel].trim());
         } catch (NumberFormatException e) {
-            return;
+            value = 0;
         }
-        value = Math.max(-1024, Math.min(1024, value));
-        Anchor a = current.anchors.get(index);
-        if (a.manual() && a.y() == value) {
-            return;
-        }
-        current.anchors.set(index, Anchor.manual(a.x(), a.z(), value));
-        markDirty();
-        LOG.info("点的 Y：点 {} 设成 {}（原 {}）", index + 1, value, a.y());
+        value = Math.max(0, Math.min(255, value));
+        routeChannels[routeChannel] = String.valueOf(value);
+        int shift = 16 - routeChannel * 8;
+        routeColor = (routeColor & ~(0xFF << shift)) | (value << shift);
     }
 
-    /**
-     * 编辑框开着时的按键：数字、负号、退格、回车、Esc，其它全吃掉。
-     *
-     * <p>数字走按键而不是 charTyped：这一版原版的字符事件是在 keyPressed 之后才派发的，
-     * 这边一旦把按键吞掉，字符就收不到了。</p>
-     */
-    private static boolean editKey(KeyEvent event) {
+    private static void shiftHue(int degrees) {
+        float[] hsb = toHsb(routeColor);
+        float hue = hsb[0] + degrees / 360.0f;
+        routeColor = fromHsb(hue, Math.max(0.25f, hsb[1]), Math.max(0.35f, hsb[2]));
+        syncChannelsFromColor();
+    }
+
+    private static float[] toHsb(int rgb) {
+        float r = ((rgb >> 16) & 0xFF) / 255.0f;
+        float g = ((rgb >> 8) & 0xFF) / 255.0f;
+        float b = (rgb & 0xFF) / 255.0f;
+        float max = Math.max(r, Math.max(g, b));
+        float min = Math.min(r, Math.min(g, b));
+        float d = max - min;
+        float hue = 0;
+        if (d > 0.0001f) {
+            if (max == r) {
+                hue = ((g - b) / d) % 6.0f;
+            } else if (max == g) {
+                hue = (b - r) / d + 2.0f;
+            } else {
+                hue = (r - g) / d + 4.0f;
+            }
+            hue /= 6.0f;
+        }
+        if (hue < 0) {
+            hue += 1.0f;
+        }
+        return new float[]{hue % 1.0f, max <= 0 ? 0 : d / max, max};
+    }
+
+    private static int fromHsb(float hue, float sat, float bri) {
+        float h = (hue - (float) Math.floor(hue)) * 6.0f;
+        int i = (int) Math.floor(h);
+        float f = h - i;
+        float p = bri * (1 - sat);
+        float q = bri * (1 - sat * f);
+        float t = bri * (1 - sat * (1 - f));
+        float r;
+        float g;
+        float b;
+        switch (i % 6) {
+            case 0 -> {
+                r = bri;
+                g = t;
+                b = p;
+            }
+            case 1 -> {
+                r = q;
+                g = bri;
+                b = p;
+            }
+            case 2 -> {
+                r = p;
+                g = bri;
+                b = t;
+            }
+            case 3 -> {
+                r = p;
+                g = q;
+                b = bri;
+            }
+            case 4 -> {
+                r = t;
+                g = p;
+                b = bri;
+            }
+            default -> {
+                r = bri;
+                g = p;
+                b = q;
+            }
+        }
+        return (clamp255(r) << 16) | (clamp255(g) << 8) | clamp255(b);
+    }
+
+    private static int clamp255(float v) {
+        return Math.max(0, Math.min(255, Math.round(v * 255.0f)));
+    }
+
+    private static String hex(int rgb) {
+        return String.format("%06X", rgb & 0xFFFFFF);
+    }
+
+    /** 点位编辑框里的按键：Tab/上下换行，方向键换类型，回车保存，Esc 取消。 */
+    private static boolean pointEditKey(KeyEvent event) {
         int key = event.key();
-        int chr = event.keycode();
         if (key == InputConstants.KEY_ESCAPE) {
-            cancelYEdit();
+            closePointEditor();
+            LOG.info("点位编辑框：取消");
             return true;
         }
-        // 335 = 小键盘回车（GLFW 的 KP_ENTER，原版没有给常量）
         if (key == InputConstants.KEY_RETURN || key == SCAN_KP_ENTER) {
-            commitYEdit();
+            commitPointEditor();
+            return true;
+        }
+        if (key == InputConstants.KEY_TAB || key == InputConstants.KEY_DOWN || key == InputConstants.KEY_UP) {
+            boolean back = key == InputConstants.KEY_UP
+                    || (key == InputConstants.KEY_TAB && event.hasShiftDown());
+            editRow = (editRow + (back ? 2 : 1)) % 3;
+            editReplace = editRow == 0;
+            return true;
+        }
+        if (editRow == 2) {
+            if (key == InputConstants.KEY_LEFT) {
+                editKind = editKind.shift(-1);
+                return true;
+            }
+            if (key == InputConstants.KEY_RIGHT) {
+                editKind = editKind.shift(1);
+                return true;
+            }
+        }
+        if (key == InputConstants.KEY_BACKSPACE) {
+            if (editRow == 0) {
+                editY = editReplace ? "" : dropLast(editY);
+                editReplace = false;
+            } else if (editRow == 1) {
+                editName = dropLast(editName);
+            }
+            return true;
+        }
+        if (event.hasControlDown() && key == InputConstants.KEY_V && editRow == 1) {
+            editName = cutText(editName + clipboard());
+            return true;
+        }
+        char c = ascii(event);
+        if (c == 0) {
+            return true;
+        }
+        if (editRow == 0) {
+            if ((c >= '0' && c <= '9') || c == '-') {
+                editY = editReplace ? String.valueOf(c) : cutText(editY + c);
+                editReplace = false;
+            }
+        } else if (editRow == 1) {
+            editName = cutText(editName + c);
+        }
+        return true;
+    }
+
+    /** 线路编辑框里的按键：Tab 在三行之间转，色板行用 ←→ 调色相，RGB 行用 ←→ 选通道。 */
+    private static boolean routeEditKey(KeyEvent event) {
+        int key = event.key();
+        if (key == InputConstants.KEY_ESCAPE) {
+            closeRouteEditor();
+            LOG.info("线路属性框：取消");
+            return true;
+        }
+        if (key == InputConstants.KEY_RETURN || key == SCAN_KP_ENTER) {
+            commitRouteEditor();
+            return true;
+        }
+        if (key == InputConstants.KEY_TAB) {
+            routeEditRow = (routeEditRow + (event.hasShiftDown() ? 2 : 1)) % 3;
+            if (routeEditRow == 2) {
+                applyChannel();
+                routeChannel = 0;
+                routeChannels[0] = "";
+            }
+            return true;
+        }
+        if (key == InputConstants.KEY_DOWN) {
+            routeEditRow = (routeEditRow + 1) % 3;
+            if (routeEditRow == 2) {
+                applyChannel();
+                routeChannel = 0;
+                routeChannels[0] = "";
+            }
+            return true;
+        }
+        if (key == InputConstants.KEY_UP) {
+            routeEditRow = (routeEditRow + 2) % 3;
+            if (routeEditRow == 2) {
+                applyChannel();
+                routeChannel = 0;
+                routeChannels[0] = "";
+            }
+            return true;
+        }
+        if (routeEditRow == 2) {
+            if (key == InputConstants.KEY_LEFT || key == InputConstants.KEY_RIGHT) {
+                applyChannel();
+                routeChannel = (routeChannel + (key == InputConstants.KEY_LEFT ? 2 : 1)) % 3;
+                routeChannels[routeChannel] = "";
+                return true;
+            }
+            if (key == InputConstants.KEY_BACKSPACE) {
+                routeChannels[routeChannel] = dropLast(routeChannels[routeChannel]);
+                applyChannel();
+                return true;
+            }
+            char c = ascii(event);
+            if (c >= '0' && c <= '9' && routeChannels[routeChannel].length() < 3) {
+                routeChannels[routeChannel] = routeChannels[routeChannel] + c;
+                applyChannel();
+            }
+            return true;
+        }
+        if (routeEditRow == 1) {
+            if (key == InputConstants.KEY_LEFT) {
+                shiftHue(-5);
+                return true;
+            }
+            if (key == InputConstants.KEY_RIGHT) {
+                shiftHue(5);
+                return true;
+            }
+            char c = ascii(event);
+            if (c >= '1' && c <= '9') {
+                pickPreset(c - '1');
+            } else if (c == '0') {
+                pickPreset(9);
+            } else if (c == '-') {
+                pickPreset(10);
+            } else if (c == '=') {
+                pickPreset(11);
+            }
             return true;
         }
         if (key == InputConstants.KEY_BACKSPACE) {
-            if (yEditReplace) {
-                yEditText = "";
-                yEditReplace = false;
-            } else if (!yEditText.isEmpty()) {
-                yEditText = yEditText.substring(0, yEditText.length() - 1);
-            }
+            routeEditName = dropLast(routeEditName);
             return true;
         }
-        // 数字：优先用字符码（这一版的 KeyEvent.keycode() 就是可打印键的字符码），
-        // 没有字符码（小键盘等）再按扫描码映射。
-        char c = 0;
-        if (chr >= '0' && chr <= '9') {
-            c = (char) chr;
-        } else if (chr == '-') {
-            c = '-';
-        } else if (key >= SCAN_1 && key <= SCAN_9) {
-            c = (char) ('1' + (key - SCAN_1));
-        } else if (key == InputConstants.KEY_0) {
-            c = '0';
-        } else if (key >= SCAN_KP_1 && key <= SCAN_KP_9) {
-            c = (char) ('1' + (key - SCAN_KP_1));
-        } else if (key == SCAN_KP_0) {
-            c = '0';
-        } else if (key == InputConstants.KEY_MINUS) {
-            c = '-';
+        if (event.hasControlDown() && key == InputConstants.KEY_V) {
+            routeEditName = cutText(routeEditName + clipboard());
+            return true;
         }
-        if (c == '-' && !yEditReplace && !yEditText.isEmpty()) {
-            // 负号只放在最前面：已经输了数字就忽略它
-            c = 0;
-        }
+        char c = ascii(event);
         if (c != 0) {
-            if (yEditReplace) {
-                yEditText = "";
-                yEditReplace = false;
-            }
-            if (yEditText.length() < 6) {
-                yEditText = yEditText + c;
-            }
+            routeEditName = cutText(routeEditName + c);
         }
         return true;
+    }
+
+    /**
+     * 字符输入：能拿到的可打印字符走按键的扫描码（这一版字符事件在按键之后派发，
+     * 按键一吞就收不到），这里只补非 ASCII 的那部分——输入法提交上来的汉字、粘贴进来的字。
+     */
+    public static boolean onChar(int codepoint) {
+        if (codepoint < 32 || codepoint == 127) {
+            return false;
+        }
+        if (codepoint < 128) {
+            return false;
+        }
+        String text = new String(Character.toChars(codepoint));
+        if (isEditing() && editRow == 1) {
+            editName = cutText(editName + text);
+            return true;
+        }
+        if (routeEditOpen && routeEditRow == 0) {
+            routeEditName = cutText(routeEditName + text);
+            return true;
+        }
+        return false;
+    }
+
+    private static char ascii(KeyEvent event) {
+        int chr = event.keycode();
+        int key = event.key();
+        boolean shift = event.hasShiftDown();
+        // 字母按扫描码算，Shift 才出得来大写（字符码那边给的是没按 Shift 的那个）。
+        if (key >= InputConstants.KEY_A && key <= InputConstants.KEY_Z) {
+            char c = (char) ('a' + (key - InputConstants.KEY_A));
+            return shift ? Character.toUpperCase(c) : c;
+        }
+        if (chr >= 32 && chr < 127) {
+            return (char) chr;
+        }
+        if (key >= SCAN_1 && key <= SCAN_9) {
+            return (char) ('1' + (key - SCAN_1));
+        }
+        if (key == InputConstants.KEY_0) {
+            return '0';
+        }
+        if (key >= SCAN_KP_1 && key <= SCAN_KP_9) {
+            return (char) ('1' + (key - SCAN_KP_1));
+        }
+        if (key == SCAN_KP_0) {
+            return '0';
+        }
+        if (key == InputConstants.KEY_SPACE) {
+            return ' ';
+        }
+        if (key == InputConstants.KEY_MINUS) {
+            return shift ? '_' : '-';
+        }
+        if (key == InputConstants.KEY_PERIOD) {
+            return '.';
+        }
+        if (key == InputConstants.KEY_COMMA) {
+            return ',';
+        }
+        return 0;
+    }
+
+    private static String dropLast(String text) {
+        return text == null || text.isEmpty() ? "" : text.substring(0, text.length() - 1);
+    }
+
+    private static String cutText(String text) {
+        return text.length() <= 24 ? text : text.substring(0, 24);
+    }
+
+    private static String clipboard() {
+        try {
+            Minecraft mc = mc();
+            return mc.keyboardHandler == null ? "" : mc.keyboardHandler.getClipboard();
+        } catch (Throwable t) {
+            return "";
+        }
     }
 
     private static String floatText(double v) {
@@ -767,6 +1234,113 @@ public final class Planner {
             current.anchors.add(a.equals(start) ? start : (a.manual() ? a : anchorAt(mp, a.x(), a.z())));
         }
         markDirty();
+    }
+
+    /**
+     * Ctrl + 左键点在线上：把新点插进那一段中间，位置吸附到线上最近的一点（线形不乱）。
+     *
+     * <p>只认正在画的那条和刚画完的那条（{@link #displayRoute()}）：别的线先点一下把它捡回来。</p>
+     */
+    private static boolean insertOnLine(MapView view, double gx, double gy) {
+        RailRoute target = null;
+        double bestD = Double.MAX_VALUE;
+        double bestS = 0;
+        RailRoute second = displayed == current ? null : displayed;
+        for (int k = 0; k < 2; k++) {
+            RailRoute route = k == 0 ? current : second;
+            if (route == null || route.anchors.size() < 2) {
+                continue;
+            }
+            Alignment al = route.alignment();
+            if (al.length() < 1.0) {
+                continue;
+            }
+            double s = nearestS(al, view, gx, gy);
+            if (s < 0) {
+                continue;
+            }
+            Vec2 p = al.pointAt(s);
+            double d = Math.hypot(view.guiX(p.x) - gx, view.guiY(p.z) - gy);
+            if (d < bestD) {
+                bestD = d;
+                bestS = s;
+                target = route;
+            }
+        }
+        if (target == null || bestD > 7.0) {
+            return false;
+        }
+        Vec2 p = target.alignment().pointAt(bestS);
+        int bx = (int) Math.floor(p.x);
+        int bz = (int) Math.floor(p.z);
+        for (Anchor a : target.anchors) {
+            if (a.x() == bx && a.z() == bz) {
+                return true;
+            }
+        }
+        int at = segmentAfter(target, p.x, p.z);
+        target.anchors.add(at, anchorAt(mapProcessor(), bx, bz));
+        target.invalidate();
+        markDirty();
+        toast("插在第 " + at + " 与第 " + (at + 1) + " 点之间（共 " + target.anchors.size() + " 点）");
+        LOG.info("插点：线「{}」第 {} 位 → ({}, {})", target.name, at + 1, bx, bz);
+        return true;
+    }
+
+    /** 沿走行线找离鼠标最近的那个里程（屏幕距离，两种像素都算上了）。 */
+    private static double nearestS(Alignment al, MapView view, double gx, double gy) {
+        double len = al.length();
+        if (len < 0.5) {
+            return -1;
+        }
+        double step = Math.max(0.5, 2.0 / Math.max(0.05, view.pixelsPerBlock()));
+        double bestS = -1;
+        double bestD = Double.MAX_VALUE;
+        for (double s = 0; s <= len; s += step) {
+            Vec2 p = al.pointAt(s);
+            double d = Math.hypot(view.guiX(p.x) - gx, view.guiY(p.z) - gy);
+            if (d < bestD) {
+                bestD = d;
+                bestS = s;
+            }
+        }
+        if (bestS < 0) {
+            return -1;
+        }
+        double lo = Math.max(0, bestS - step);
+        double hi = Math.min(len, bestS + step);
+        for (double s = lo; s <= hi; s += step / 8.0) {
+            Vec2 p = al.pointAt(s);
+            double d = Math.hypot(view.guiX(p.x) - gx, view.guiY(p.z) - gy);
+            if (d < bestD) {
+                bestD = d;
+                bestS = s;
+            }
+        }
+        return bestS;
+    }
+
+    /** 这个位置插在第几个点后面：折线每一段投影一遍，挑最近那段。 */
+    private static int segmentAfter(RailRoute route, double px, double pz) {
+        int bestAt = route.anchors.size() - 1;
+        double bestD = Double.MAX_VALUE;
+        for (int i = 0; i + 1 < route.anchors.size(); i++) {
+            Anchor a = route.anchors.get(i);
+            Anchor b = route.anchors.get(i + 1);
+            double dx = b.x() - a.x();
+            double dz = b.z() - a.z();
+            double len2 = dx * dx + dz * dz;
+            double t = len2 <= 0.0001 ? 0 : ((px - a.x()) * dx + (pz - a.z()) * dz) / len2;
+            t = Math.max(0, Math.min(1, t));
+            double ex = a.x() + dx * t - px;
+            double ez = a.z() + dz * t - pz;
+            double d = ex * ex + ez * ez;
+            if (d < bestD) {
+                bestD = d;
+                bestAt = i + 1;
+            }
+        }
+        return bestAt;
     }
 
     public static int hitVertex(MapView view, RailRoute route, double gx, double gy) {
