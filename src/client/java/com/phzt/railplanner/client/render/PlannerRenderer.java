@@ -416,7 +416,7 @@ public final class PlannerRenderer {
                 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
             String title = a.name().isEmpty() ? (Loc.s("点 ", "Point ") + (Planner.hoverIndex + 1)) : a.name();
-            tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label);
+            tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label());
             tooltip(g, font, mouseX + 12, mouseY - 17, "(" + a.x() + ", " + a.y() + ", " + a.z() + ")"
                     + (a.manual() ? Loc.s(" · 手填", " · manual") : ""));
             tooltip(g, font, mouseX + 12, mouseY - 4, Loc.s("双击改 Y / 名字 / 类型", "Double-click to edit Y / name / type"));
@@ -528,7 +528,7 @@ public final class PlannerRenderer {
         Font font = Minecraft.getInstance().font;
         Anchor a = route.anchors.get(index);
         int row = Planner.editRow();
-        String head = Loc.s("点 ", "Point ") + (index + 1) + " · " + Planner.editKind().label;
+        String head = Loc.s("点 ", "Point ") + (index + 1) + " · " + Planner.editKind().label();
         String hint = Loc.s("Tab 换行 · ← → 换类型 · 回车保存 · Esc 取消", "Tab next field · ← → change type · Enter save · Esc cancel");
         int w = Math.max(278, font.width(hint) + 18);
         int h = 86;
@@ -546,7 +546,7 @@ public final class PlannerRenderer {
         rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "Y", Planner.editYText());
         rowLine(g, font, x + 9, y + 38, w - 18, row == 1, Loc.s("名字", "Name"), Planner.editNameText());
         rowLine(g, font, x + 9, y + 57, w - 18, row == 2, Loc.s("类型", "Type"),
-                "◀ " + Planner.editKind().label + " ▶");
+                "◀ " + Planner.editKind().label() + " ▶");
         g.text(font, hint, x + 9, y + 74, DIM);
     }
 
@@ -575,13 +575,17 @@ public final class PlannerRenderer {
             return;
         }
         Font font = Minecraft.getInstance().font;
-        int w = 330;
+        String title = Loc.s("线路属性", "Route properties");
+        String headerHint = Loc.s("Tab 换行 · ← → 调色相 · 回车保存 · Esc 取消",
+                "Tab next field · ← → hue · Enter save · Esc cancel");
+        // 标题和右侧提示都得放得下：中文标题短、英文行长，别用固定间距
+        int w = Math.max(330, 9 + font.width(title) + 14 + font.width(headerHint) + 9);
         int h = 118;
         int x = Math.max(4, (view.width() - w) / 2);
         int y = Math.max(4, (view.height() - h) / 2);
         panel(g, x, y, w, h);
-        g.text(font, Loc.s("线路属性", "Route properties"), x + 9, y + 5, TITLE);
-        g.text(font, Loc.s("Tab 换行 · ← → 调色相 · 回车保存 · Esc 取消", "Tab next field · ← → hue · Enter save · Esc cancel"), x + 62, y + 5, DIM);
+        g.text(font, title, x + 9, y + 5, TITLE);
+        g.text(font, headerHint, x + 9 + font.width(title) + 14, y + 5, DIM);
 
         int row = Planner.routeRow();
         rowLine(g, font, x + 9, y + 19, w - 18, row == 0, Loc.s("名字", "Name"), Planner.routeNameText());

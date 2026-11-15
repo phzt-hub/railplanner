@@ -72,7 +72,7 @@ public final class WorldHud {
             colors.add(DIM);
         }
         if (config.anchorLock) {
-            texts.add(" · 点已锁");
+            texts.add(Loc.s(" · 点已锁", " · points locked"));
             colors.add(CAUTION);
         }
         texts.add(" · " + RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + Loc.s(" 开关 · ", " toggle · ")

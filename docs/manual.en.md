@@ -106,7 +106,7 @@ The rules are simple:
 
 Folding only affects the panel; the coordinate tooltip on a vertex and the `R / Δ / T / L / E` tooltip on a bend still pop up as usual.
 
-![Collapsed, inside the map](collapsed-on-map.png)
+![Collapsed, inside the map](collapsed.png)
 
 This state is stored in the config file: **press it once and it stays collapsed**, across game restarts and other saves. To have it collapsed by default, set `hudCollapsed` to `true` in the config (see [§8](#8-config-file-and-saves)).
 
@@ -672,7 +672,7 @@ Each face segment is 8 blocks long and 1.5 blocks half-width. Blue = the ground 
 
 While editing, every point gets one of these pins — green at the start, red at the end, white in between, and the cube on top says which point it is:
 
-![Placed points](world-anchors.png)
+![Placed points](world-lines.png)
 
 How far apart the two lines are is exactly where the panel's "tun 612 · br 15" numbers come from — **the same data, the same algorithm**, not a second calculation.
 

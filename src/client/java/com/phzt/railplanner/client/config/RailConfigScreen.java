@@ -336,11 +336,11 @@ public class RailConfigScreen extends Screen {
             return Component.literal(Loc.s("已装好 ", "Installed ") + Updater.version() + Loc.s("，待重启", " — restart to apply"));
         }
         if (Updater.downloading()) {
-            return Component.literal("正在下载…");
+            return Component.literal(Loc.s("正在下载…", "Downloading..."));
         }
         String latest = RailConfig.get().latestVersion;
         if (UpdateChecker.isNewer() && latest != null && !latest.isEmpty()) {
-            return Component.literal("下载并安装 " + latest);
+            return Component.literal(Loc.s("下载并安装 ", "Download and install ") + latest);
         }
         return Component.literal(Loc.s("下载并安装（已是最新）", "Up to date"));
     }

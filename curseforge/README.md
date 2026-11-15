@@ -42,13 +42,16 @@ python3 tools/make-cf-docx.py
 |---|---|---|
 | 1 | `docs/screenshot.png` | Pick points on the world map |
 | 2 | `docs/world-lines.png` | The same line standing in the 3D world |
-| 3 | `docs/world-lines-xray.png` | X: pillars through terrain — blue is dig, orange is build up |
+| 3 | `docs/world-lines-xray.png` | Press X: the same line seen through terrain |
 | 4 | `docs/route-editor.png` | Rename and recolour a route |
 | 5 | `docs/point-y.png` | Double-click a vertex: Y, name, type |
 | 6 | `docs/collapsed.png` | H collapses the panel to one line |
 | 7 | `docs/settings.png` | Settings page (U, or Mod Menu) |
 
 第一张会当封面，选 `screenshot.png`（面板 + 地图同框，信息量最大）。
+
+七张都是 **1920×1080、英文客户端、无窗口边框、无教程浮层、无命令回显**（`run/` 里那台 1920×1080 的 X 服务 + `x11grab` 抓帧）。
+换图时照这四条走，别用桌面整屏截图——上一版封面里就带进了一个浏览器窗口。
 
 ## 依赖怎么填
 

@@ -107,7 +107,8 @@ public final class RailPlannerClient implements ClientModInitializer {
                     config.worldLines = !config.worldLines;
                     RailConfig.save();
                     client.gui.hud.setOverlayMessage(
-                            Component.literal("世界里的 3D 线 → " + (config.worldLines ? "开" : "关")), false);
+                            Component.literal(Loc.s("世界里的 3D 线 → ", "3D line in the world → ")
+                                    + (config.worldLines ? Loc.s("开", "on") : Loc.s("关", "off"))), false);
                     LOG.info("按键 {}：世界里的 3D 线 → {}", keyName(WORLD_TOGGLE), config.worldLines ? "开" : "关");
                 }
                 if (worldXrays > 0) {
@@ -115,7 +116,8 @@ public final class RailPlannerClient implements ClientModInitializer {
                     config.worldXray = !config.worldXray;
                     RailConfig.save();
                     client.gui.hud.setOverlayMessage(
-                            Component.literal("3D 线穿山可见 → " + (config.worldXray ? "开" : "关")), false);
+                            Component.literal(Loc.s("3D 线穿山可见 → ", "See line through terrain → ")
+                                    + (config.worldXray ? Loc.s("开", "on") : Loc.s("关", "off"))), false);
                     LOG.info("按键 {}：3D 线穿山可见 → {}", keyName(WORLD_XRAY), config.worldXray ? "开" : "关");
                 }
                 if (toggles > 0) {
