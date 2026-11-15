@@ -26,15 +26,18 @@
 
 ## 一键贴（docx）
 
-`description.md` 是源，`RailPlanner-CurseForge-Description.docx` 是拿去贴的成品。直接往 CF 编辑器里贴 Markdown，`#`、`**`、`-` 会原样留在页面上，几百处得手删；docx 里是 Word 的真样式（Heading、List Bullet、List Number、超链接），CF 编辑器的粘贴处理器认它们。
+`description.md` 是源，`RailPlanner-CurseForge-Description.docx`（约 3 MB，正文 11 页）是拿去贴的成品。直接往 CF 编辑器里贴 Markdown，`#`、`**`、`-` 会原样留在页面上，几百处得手删；docx 里是 Word 的真样式（Heading、List Bullet、List Number、超链接），CF 编辑器的粘贴处理器认它们。
 
 改完 `description.md` 重新生成一次就行：
 
 ```sh
-python3 tools/make-cf-docx.py
+python3 tools/make-cf-docx.py               # 带七张截图，约 3 MB
+python3 tools/make-cf-docx.py --no-images   # 只出文字，约 46 KB
 ```
 
-生成器顺手做了三件人肉容易错的事：两段编号列表各自从 1 开始（不会出现 5. 6. 7.）、`*斜体*` 和 `**粗体**` 都还原成真斜体/粗体、正文里不放外链图（CF 会剥掉 raw.githubusercontent 的 `<img>`，图片走 Gallery）。
+生成器顺手做了四件人肉容易错的事：两段编号列表各自从 1 开始（不会出现 5. 6. 7.）、`*斜体*` 和 `**粗体**` 都还原成真斜体/粗体、正文里不放外链图（CF 会剥掉 raw.githubusercontent 的 `<img>`，图片走 Gallery）、七张截图以**本地副本**嵌进「Screenshots」小节下面（1600×900 重采样、JPEG 4:4:4、通栏 16.6 cm ≈ 245 dpi，每张底下一行 Gallery 标题）。
+
+嵌图顺序和标题就是下面那张 Gallery 表，脚本顶部 `GALLERY` 一处改完就行。图是给人看和打印的：**CF 编辑器的粘贴处理器不保证接住粘贴的图片**，项目页上的图仍然走 Gallery 上传，两边顺序一致。
 
 ## 图片（Gallery，按这个顺序传）
 
