@@ -1,0 +1,1 @@
+Plan railways on Xaero's world map: corners filleted into tangent-arc-tangent curves, snapped to blocks, with gradients, tunnels, bridges, materials and cart times, plus a 3D line in the world showing what to dig and what to build.
