@@ -256,10 +256,16 @@ public final class Planner {
     }
 
     public static boolean onKey(KeyEvent event, MapView view, MapProcessor mp) {
+        int key = event.key();
         if (!active) {
+            // 地图里再按一次 B 可以重新进入规划模式
+            if (key == InputConstants.KEY_B) {
+                active = true;
+                statsDirty = true;
+                return true;
+            }
             return false;
         }
-        int key = event.key();
         boolean shift = event.hasShiftDown();
         switch (key) {
             case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
