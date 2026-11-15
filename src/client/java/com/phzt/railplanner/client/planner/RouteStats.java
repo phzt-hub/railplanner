@@ -3,6 +3,9 @@ package com.phzt.railplanner.client.planner;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.terrain.XaeroTerrain;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.level.levelgen.Heightmap;
 import xaero.map.MapProcessor;
 
 /**
@@ -47,6 +50,8 @@ public final class RouteStats {
     /** 设计标高与地面标高，给坡度曲线用。 */
     public float[] designProfile;
     public float[] terrainProfile;
+    /** 抹掉单格尖刺后的地面标高，给世界里的地面线用（原始剖面留着算坡）。 */
+    public float[] smoothTerrainProfile;
 
     public static RouteStats compute(RailRoute route, MapProcessor mp) {
         RouteStats st = new RouteStats();
@@ -64,7 +69,7 @@ public final class RouteStats {
         float[] terrain = new float[n];
         double[] dist = new double[n];
         for (int i = 0; i < n; i++) {
-            int h = XaeroTerrain.height(mp, path.xs[i], path.zs[i]);
+            int h = height(mp, path.xs[i], path.zs[i]);
             if (h == XaeroTerrain.UNKNOWN) {
                 terrain[i] = Float.NaN;
                 st.unknownCells++;
@@ -80,6 +85,7 @@ public final class RouteStats {
 
         // 地面坡：先按 5 格窗口抹掉单格尖刺（树、柱、悬崖边缘），再看最大坡
         float[] terrainSmooth = boxSmooth(interpolateUnknown(terrain), 2);
+        st.smoothTerrainProfile = terrainSmooth;
         if (terrainSmooth != null) {
             for (int i = 1; i < n; i++) {
                 if (dist[i] <= 0) {
@@ -126,6 +132,26 @@ public final class RouteStats {
         st.secondsAt8 = st.railLength / 8.0;
         st.secondsAt4 = st.railLength / 4.0;
         return st;
+    }
+
+    /**
+     * 某一格的地面高度：先用 Xaero 已探明的数据，没有就退回当前加载着的区块。
+     *
+     * <p>世界里的 3D 线一般是在没开地图的时候画的，那会儿 Xaero 的会话可能还没起来，
+     * 或者那片地方压根没探过——退回真实区块至少玩家脚下这一段是准的。
+     */
+    public static int height(MapProcessor mp, int x, int z) {
+        if (mp != null) {
+            int h = XaeroTerrain.height(mp, x, z);
+            if (h != XaeroTerrain.UNKNOWN) {
+                return h;
+            }
+        }
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level != null && level.hasChunk(x >> 4, z >> 4)) {
+            return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        }
+        return XaeroTerrain.UNKNOWN;
     }
 
     /** 限坡纵断面：前向/后向剖切 + 两次平滑，再重新限坡。 */

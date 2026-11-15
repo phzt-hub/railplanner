@@ -9,6 +9,8 @@
   "key.railplanner.grade_up": "Raise design grade (Shift 5%)",
   "key.railplanner.settings": "Open settings",
   "key.railplanner.hud_collapse": "Collapse/expand info panel",
+  "key.railplanner.world_toggle": "3D route in world",
+  "key.railplanner.world_xray": "3D route always on top",
 
   "railplanner.config.title": "Rail Planner Settings",
   "railplanner.config.updates_on": "Update check: on",

@@ -34,6 +34,8 @@ public final class Planner {
     public static String worldId = "default";
     public static final List<RailRoute> routes = new ArrayList<>();
     public static RailRoute current;
+    /** 世界里的 3D 线与状态条显示哪条（current 空了之后还留着的「最后那条」）。 */
+    private static RailRoute displayed;
     public static int dragIndex = -1;
     public static int hoverIndex = -1;
 
@@ -100,6 +102,7 @@ public final class Planner {
             routes.clear();
             routes.addAll(RouteStore.load(worldId));
             current = null;
+            displayed = routes.isEmpty() ? null : routes.get(0);
             stats = null;
             statsDirty = true;
         }
@@ -134,13 +137,22 @@ public final class Planner {
                 PALETTE[routes.size() % PALETTE.length]);
         routes.add(r);
         current = r;
+        displayed = r;
         statsDirty = true;
         return r;
     }
 
     public static void finishRoute() {
-        if (current != null && current.isEmpty()) {
-            routes.remove(current);
+        if (current != null) {
+            if (current.isEmpty()) {
+                routes.remove(current);
+                if (displayed == current) {
+                    displayed = null;
+                }
+            } else {
+                // 完成了也别从世界里消失——那条线正是要拿去修的。
+                displayed = current;
+            }
         }
         current = null;
         dragIndex = -1;
@@ -176,10 +188,8 @@ public final class Planner {
         }
         hoverIndex = active && current != null ? hitVertex(view, current, mouseX, mouseY) : -1;
 
-        if (statsDirty && current != null && mp != null && current.path().size() <= 20000) {
-            stats = RouteStats.compute(current, mp);
-            statsRouteId = current.id;
-            statsDirty = false;
+        if (statsDirty && mp != null) {
+            ensureStats();
         }
 
         PlannerRenderer.render(g, view, mouseX, mouseY, routes, current, hoverIndex, dragIndex);
@@ -385,6 +395,56 @@ public final class Planner {
 
     public static RouteStats stats() {
         return stats;
+    }
+
+    /** 当前在编辑的那条线。 */
+    public static RailRoute current() {
+        return current;
+    }
+
+    /**
+     * 世界里的 3D 线与状态条看哪条：正在编辑的那条；没有就退回最后选中/载入的那条——
+     * 否则按回车完成一条线之后它就从世界里消失了，而那正是要照着去修的那条。
+     */
+    public static RailRoute displayRoute() {
+        return current != null ? current : displayed;
+    }
+
+    /**
+     * 取当前线的统计，没算过就算一份。
+     *
+     * <p>地图里是 {@link #render} 顺手算的；世界里的 3D 线不开地图也得画，所以这里要能自己算：
+     * 优先用 Xaero 的会话（全图已探明数据），会话没起来就退回真实区块的高度。
+     */
+    public static RouteStats ensureStats() {
+        RailRoute route = displayRoute();
+        if (route == null) {
+            stats = null;
+            statsRouteId = null;
+            return null;
+        }
+        if (!statsDirty && stats != null && route.id.equals(statsRouteId)) {
+            return stats;
+        }
+        if (route.path().size() > 20000) {
+            stats = null;
+            statsRouteId = null;
+            statsDirty = false;
+            return null;
+        }
+        stats = RouteStats.compute(route, mapProcessor());
+        statsRouteId = route.id;
+        statsDirty = false;
+        return stats;
+    }
+
+    private static MapProcessor mapProcessor() {
+        try {
+            WorldMapSession session = WorldMapSession.getCurrentSession();
+            return session == null ? null : session.getMapProcessor();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     public static String statsRouteId() {

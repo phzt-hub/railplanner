@@ -34,6 +34,12 @@ public final class RailConfig {
     public String latestUrl = "";
     /** 地图上的信息面板是否折叠成一行（按 H 切换，记住状态）。 */
     public boolean hudCollapsed;
+    /** 在三维世界里画当前这条线（按 V 切换，记住状态）。 */
+    public boolean worldLines = true;
+    /** 3D 线穿山可见，画在所有东西之上（按 X 切换）。 */
+    public boolean worldXray;
+    /** 3D 线只画离镜头这么远以内的段，格。 */
+    public double worldRange = 256.0;
 
     private static RailConfig instance = new RailConfig();
 
@@ -65,6 +71,7 @@ public final class RailConfig {
 
     private RailConfig sanitized() {
         intervalHours = Math.max(1, Math.min(720, intervalHours));
+        worldRange = Math.max(32.0, Math.min(2048.0, worldRange));
         if (lastEtag == null) {
             lastEtag = "";
         }

@@ -45,10 +45,12 @@ public final class PlannerRenderer {
             drawRubberBand(g, view, current, mouseX, mouseY);
         }
         if (Planner.isActive()) {
+            // 面板跟世界里的 3D 线看同一条：没在编辑时退回最后那条。
+            RailRoute shown = Planner.displayRoute();
             if (RailConfig.get().hudCollapsed) {
-                drawHudCollapsed(g, current);
+                drawHudCollapsed(g, shown);
             } else {
-                drawHud(g, view, mouseX, mouseY, current);
+                drawHud(g, view, mouseX, mouseY, shown);
             }
             drawHover(g, view, mouseX, mouseY, current);
         } else if (!routes.isEmpty()) {
@@ -188,6 +190,9 @@ public final class PlannerRenderer {
                 + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + " 半径 · "
                 + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + " 自动选线 · "
                 + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + " 折叠", DIM);
+
+        add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + " 世界里的 3D 线 · "
+                + RailPlannerClient.keyName(RailPlannerClient.WORLD_XRAY) + " 穿山可见", DIM);
 
         int x = 6;
         int y = 6;

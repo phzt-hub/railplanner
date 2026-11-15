@@ -4,11 +4,14 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.config.RailConfigScreen;
 import com.phzt.railplanner.client.planner.Planner;
+import com.phzt.railplanner.client.render.WorldHud;
 import com.phzt.railplanner.client.update.UpdateChecker;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,8 +49,18 @@ public final class RailPlannerClient implements ClientModInitializer {
             new KeyMapping("key.railplanner.settings", InputConstants.Type.KEYBOARD,
                     InputConstants.KEY_U, CATEGORY);
 
+    /** V：世界里那条 3D 线的总开关（跟规划模式分开，截图前可以一键关掉）。 */
+    public static final KeyMapping WORLD_TOGGLE =
+            new KeyMapping("key.railplanner.world_toggle", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_V, CATEGORY);
+    /** X：3D 线穿山可见（画在所有东西之上）。 */
+    public static final KeyMapping WORLD_XRAY =
+            new KeyMapping("key.railplanner.world_xray", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_X, CATEGORY);
+
     private static final KeyMapping[] ALL = {
-            TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, HUD_COLLAPSE, SETTINGS
+            TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, HUD_COLLAPSE, SETTINGS,
+            WORLD_TOGGLE, WORLD_XRAY
     };
 
     @Override
@@ -57,12 +70,32 @@ public final class RailPlannerClient implements ClientModInitializer {
         }
         RailConfig.load();
         UpdateChecker.init();
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("railplanner", "status"),
+                (graphics, deltaTracker) -> WorldHud.render(graphics));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             // 有界面开着时不吃这两个全局键：地图里的按键由 GuiMapMixin 自己接。
             int toggles = drain(TOGGLE);
             int settings = drain(SETTINGS);
+            int worldToggles = drain(WORLD_TOGGLE);
+            int worldXrays = drain(WORLD_XRAY);
             if (client.gui.screen() == null) {
+                if (worldToggles > 0) {
+                    RailConfig config = RailConfig.get();
+                    config.worldLines = !config.worldLines;
+                    RailConfig.save();
+                    client.gui.hud.setOverlayMessage(
+                            Component.literal("世界里的 3D 线 → " + (config.worldLines ? "开" : "关")), false);
+                    LOG.info("按键 {}：世界里的 3D 线 → {}", keyName(WORLD_TOGGLE), config.worldLines ? "开" : "关");
+                }
+                if (worldXrays > 0) {
+                    RailConfig config = RailConfig.get();
+                    config.worldXray = !config.worldXray;
+                    RailConfig.save();
+                    client.gui.hud.setOverlayMessage(
+                            Component.literal("3D 线穿山可见 → " + (config.worldXray ? "开" : "关")), false);
+                    LOG.info("按键 {}：3D 线穿山可见 → {}", keyName(WORLD_XRAY), config.worldXray ? "开" : "关");
+                }
                 if (toggles > 0) {
                     Planner.toggle(client);
                     LOG.info("规划模式 → {}（按键 {}）", Planner.isActive() ? "开" : "关", keyName(TOGGLE));

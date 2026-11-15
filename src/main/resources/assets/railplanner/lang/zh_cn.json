@@ -9,6 +9,8 @@
   "key.railplanner.grade_up": "设计限坡调高（Shift 5%）",
   "key.railplanner.settings": "打开设置页",
   "key.railplanner.hud_collapse": "折叠/展开信息面板",
+  "key.railplanner.world_toggle": "世界里的 3D 线",
+  "key.railplanner.world_xray": "3D 线穿山可见",
 
   "railplanner.config.title": "铁路选线设置",
   "railplanner.config.updates_on": "自动检查更新：开",
