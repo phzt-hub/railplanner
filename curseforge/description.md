@@ -8,6 +8,14 @@ When you close the map the line does not vanish. It stands in the 3D world next 
 
 ![Pick points on the map; the panel recomputes as you go](https://raw.githubusercontent.com/phzt-hub/railplanner/master/docs/screenshot.png)
 
+## ⚠️ Up front: this is not a survival mod
+
+It serves exactly one purpose — building a railway in Minecraft that would survive a real-world engineering review: design grade, curve radius, tunnel depth, bridges, the vertical profile. If you're playing survival and just want a minecart to carry you from A to B, **you don't need it, and it isn't recommended.**
+
+It will not get your minecart there faster, and it will not save you a single block of digging. What it will do is make you spend an afternoon arguing with yourself about whether 12‰ is too steep, then drag the whole line back and redraw it; make you work out that a full run takes 4 minutes and then redraw a third of the route to shave 20 seconds; make you press `R` on the same line until you forget what you were adjusting.
+
+Your time is yours to waste. But this thing can genuinely turn a weekend into a longitudinal profile — decide before you install.
+
 ## What it actually does
 
 **Alignment geometry, not a polyline.** Every corner is filleted into tangent–arc–tangent with one shared radius (default 24 blocks, adjustable 4–200). `R` scales it by 1.25, `Shift+R` by 0.8. Where two points sit too close for the arc to fit, the radius is quietly reduced, and the panel reports the smallest radius you actually ended up with — so you never look at a curve the geometry had to cheat on.
@@ -100,6 +108,14 @@ All of them are remappable in Options → Controls → Key Binds → Rail Planne
 Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟合成一条真正的线形——切线、圆曲线、切线——再像素化到方块上，看到的线就是能铺出来的轨道。顺手把修铁路要问的数全算了：多长、多陡、多少隧道多少桥、要买多少铁轨和动力铁轨、矿车跑一趟要多久。
 
 关掉地图它也不会消失。线立在三维世界里：设计标高、地面标高，中间是填挖立柱，哪段要挖、哪段要架高，一眼看明白。
+
+## ⚠️ 先说清楚：这不是生存模组
+
+它只服务一个目的——在 Minecraft 里修一条经得起现实物理推敲的铁路：限坡、圆曲线半径、隧道埋深、桥、纵断面。如果你玩的是生存、只想让矿车把你从 A 送到 B，**用不到它，也不推荐用**。
+
+它不会让你的矿车更快，也不会帮你少挖一块石头。它只会让你在某个下午开始计较「这段 12‰ 是不是太陡」，然后把刚画好的线整个拖掉重来；让你算完矿车跑完全程只要 4 分钟，再为了省 20 秒把三分之一的线重画一遍；让你在同一条线上反复按 `R`，直到忘了自己在调什么。
+
+时间是你的，浪费在哪儿也是你的自由。但这东西确实能把一个周末变成一张纵断面图——想清楚了再装。
 
 ## 它到底做了什么
 
