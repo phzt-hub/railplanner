@@ -216,6 +216,8 @@ Every point carries a Y, which is **the design elevation where the line passes t
 | Esc | Cancel |
 | Clicking elsewhere on the map | Same as Enter (confirm) |
 
+![Double-click a vertex to set its Y](point-y.png)
+
 A point you edited is marked "manual"; dragging it only changes its position, not its elevation. A point you didn't edit re-samples the ground height when dragged to a new position.
 
 **How it shapes the line**: the vertical profile has to pass through these heights.
