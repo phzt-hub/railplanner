@@ -260,6 +260,8 @@ An unnamed point shows as "点 N"; a named one shows its name as the first toolt
 
 `Tab` cycles the rows, and the mouse can click the swatches and the hue bar directly. In collapsed mode the name on the single-line panel opens the same box.
 
+![Double-click the panel's name row: name, swatches, hue bar and RGB](route-editor.png)
+
 New lines don't need you to pick a colour: they take one from the 7-colour palette in creation order, and whatever you change sticks to that line (it is saved and synced).
 
 ---
