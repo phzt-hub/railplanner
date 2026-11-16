@@ -7,3 +7,4 @@ libs/*.jar
 .idea/
 __pycache__/
 *.pyc
+curseforge/dist/
