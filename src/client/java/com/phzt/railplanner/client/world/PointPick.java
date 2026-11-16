@@ -16,7 +16,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 世界里「拿着指定物品右键点一个点」：准星射线扫过当前那条线上的锚点，命中了就弹编辑框。
+ * 世界里「拿着指定物品右键点一个点」：准星射线扫过当前那条线上的锚点，命中了就照手里的物品办事——
+ * 铁轨（{@code poiEditItem}）弹编辑框，锁链（{@code poiLockItem}）把这一点的锁翻过来。
  *
  * <p>锚点在世界里不是实体也不是方块，原版的 {@code pick} 根本看不到它，所以这里自己算：
  * 每个点在世界里是一根竖针（和 {@link RouteGizmos#emitAnchors} 画的是同一个东西），
@@ -25,8 +26,10 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>命中时要「吞掉」这次右键：两个 Fabric 回调都是 {@code MultiPlayerGameMode} 里
  * 调用的（客户端），返回 {@link InteractionResult#FAIL} 之后原版就不会再发
- * {@code ServerboundUseItemOnPacket}，铁轨也就不会放下去；没命中一律返回
+ * {@code ServerboundUseItemOnPacket}，铁轨也就不会放下去、锁链也不会挂上去；没命中一律返回
  * {@link InteractionResult#PASS}，右键还是原版那个右键。</p>
+ *
+ * <p>两个物品万一配成同一个 id，锁链优先——先按「切锁」理解，不然配错一次就再也解不开锁了。</p>
  */
 public final class PointPick {
 
@@ -43,7 +46,7 @@ public final class PointPick {
     }
 
     /**
-     * 右键回调的总入口：主手拿着触发物品、屏幕没开、命中了点，就开编辑框并吞掉这次交互。
+     * 右键回调的总入口：主手拿着触发物品、屏幕没开、命中了点，就按物品办事并吞掉这次交互。
      *
      * <p>客户端和服务端都会走到这里（同一个 API），服务端那次直接放行——编辑是纯客户端的事，
      * 改完的数据照原来的路径同步。</p>
@@ -61,13 +64,23 @@ public final class PointPick {
         }
         RailConfig config = RailConfig.get();
         // 「显示已选的点」关掉之后点根本不画出来，就别还能点到它了。
-        if (!config.poiEdit || !config.worldAnchors || config.hotkeysOff || !holds(config, local)) {
+        if (!config.worldAnchors || config.hotkeysOff) {
+            return InteractionResult.PASS;
+        }
+        // 锁链不受「拿物品右键改点」那个开关管：关掉改点是为了别手滑开了编辑框，
+        // 但要还能把已经锁住的点解开，所以切锁这条路一直留着。
+        boolean chain = holds(local, config.lockItemId());
+        if (!chain && (!config.poiEdit || !holds(local, config.poiItemId()))) {
             return InteractionResult.PASS;
         }
         RailRoute route = Planner.displayRoute();
         int index = pick(route, local);
         if (index < 0) {
             return InteractionResult.PASS;
+        }
+        if (chain) {
+            Planner.toggleAnchorLock(route, index);
+            return InteractionResult.FAIL;
         }
         PointEditScreen.open(route, index);
         return InteractionResult.FAIL;
@@ -80,20 +93,26 @@ public final class PointPick {
             return -1;
         }
         RailConfig config = RailConfig.get();
-        if (!config.poiEdit || !config.worldAnchors || config.hotkeysOff || !holds(config, mc.player)) {
+        if (!config.worldAnchors || config.hotkeysOff || !holdingTrigger(config, mc.player)) {
             return -1;
         }
         return pick(route, mc.player);
     }
 
-    /** 手里那份是不是配置里的触发物品。 */
-    private static boolean holds(RailConfig config, Player player) {
+    /** 手里拿的是不是两个触发物品之一（编辑框那个看 poiEdit 开没开）。 */
+    private static boolean holdingTrigger(RailConfig config, Player player) {
+        return holds(player, config.lockItemId())
+                || (config.poiEdit && holds(player, config.poiItemId()));
+    }
+
+    /** 手里那份是不是指定物品 id。 */
+    private static boolean holds(Player player, String itemId) {
         ItemStack stack = player.getMainHandItem();
         if (stack.isEmpty()) {
             return false;
         }
         String id = String.valueOf(BuiltInRegistries.ITEM.getKey(stack.getItem()));
-        return id.equals(config.poiItemId());
+        return id.equals(itemId);
     }
 
     /** 视线命中的点，没有就 -1。 */

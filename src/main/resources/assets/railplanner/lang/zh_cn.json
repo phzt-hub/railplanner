@@ -27,6 +27,7 @@
   "railplanner.config.poi_edit_on": "拿物品右键改点：开",
   "railplanner.config.poi_edit_off": "拿物品右键改点：关",
   "railplanner.config.poi_item": "触发物品",
+  "railplanner.config.lock_item": "锁链物品",
   "railplanner.config.world_range": "显示距离：%s 格",
   "railplanner.config.lock_on": "锁住已选的点：开",
   "railplanner.config.lock_off": "锁住已选的点：关",

@@ -29,6 +29,8 @@ public final class PlannerRenderer {
     private static final int ACCENT = 0xFF69F0AE;
     private static final int WARN = 0xFFFF6E6E;
     private static final int CAUTION = 0xFFFFB74D;
+    /** 锁住的那个点的角标颜色（地图上一点点大，得用暖色才看得见）。 */
+    private static final int LOCK = 0xFFF0C040;
     /** 隧道/桥占已判长度的比例超过这个数（且超过 32 格）就算工程偏大。 */
     /** 上一帧画出来的「线名」文字框，双击它改名字和颜色。 */
     private static int nameX;
@@ -148,6 +150,14 @@ public final class PlannerRenderer {
             }
             boolean active = i == drag || i == hover;
             drawIcon(g, (int) Math.round(x), (int) Math.round(y), a.kind(), active);
+            if (a.locked()) {
+                // 锁住的点：图标右上角一个深底亮块，缩到最小也还看得见；
+                // 只有全局锁的时候不画它——那是「全都锁了」，画满屏角标反而看不出哪一个是特意锁的。
+                int bx = (int) Math.round(x) + 4;
+                int by = (int) Math.round(y) - 9;
+                g.fill(bx - 1, by - 1, bx + 4, by + 4, 0xFF101418);
+                g.fill(bx, by, bx + 3, by + 3, LOCK);
+            }
             if (nameable && !a.name().isEmpty()) {
                 int tx = (int) Math.round(x) + 8;
                 int ty = (int) Math.round(y) - 13;
@@ -307,7 +317,7 @@ public final class PlannerRenderer {
                 + RailPlannerClient.keyName(RailPlannerClient.RADIUS) + Loc.s(" 半径 · ", " radius · ")
                 + RailPlannerClient.keyName(RailPlannerClient.AUTOROUTE) + Loc.s(" 自动选线 · ", " auto-route · ")
                 + RailPlannerClient.keyName(RailPlannerClient.HUD_COLLAPSE) + Loc.s(" 折叠", " collapse"), DIM);
-        add(lines, colors, Loc.s("双击顶点改 Y/名字/类型 · 双击上面那行线名改名字与颜色", "Double-click a vertex to edit Y, name, type · double-click the route name above to rename and recolour"), DIM);
+        add(lines, colors, Loc.s("双击顶点改 X/Z/Y/名字/类型 · 双击上面那行线名改名字与颜色", "Double-click a vertex to edit X, Z, Y, name, type · double-click the route name above to rename and recolour"), DIM);
 
         boolean locked = RailConfig.get().anchorLock;
         add(lines, colors, RailPlannerClient.keyName(RailPlannerClient.WORLD_TOGGLE) + Loc.s(" 世界里的 3D 线 · ", " 3D line in the world · ")
@@ -411,15 +421,17 @@ public final class PlannerRenderer {
     private static void drawHover(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY, RailRoute current) {
         Font font = Minecraft.getInstance().font;
         Alignment al = current == null ? null : current.alignment();
-        // 正在改 Y 的时候不弹顶点提示：两个框会叠在一起，数字被坐标盖住。
+        // 正在改坐标的时候不弹顶点提示：两个框会叠在一起，数字被坐标盖住。
         if (current != null && !Planner.isEditing() && Planner.hoverIndex >= 0
                 && Planner.hoverIndex < current.anchors.size()) {
             Anchor a = current.anchors.get(Planner.hoverIndex);
             String title = a.name().isEmpty() ? (Loc.s("点 ", "Point ") + (Planner.hoverIndex + 1)) : a.name();
-            tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label());
+            tooltip(g, font, mouseX + 12, mouseY - 30, title + " · " + a.kind().label()
+                    + (a.locked() ? Loc.s(" · 已锁", " · locked") : ""));
             tooltip(g, font, mouseX + 12, mouseY - 17, "(" + a.x() + ", " + a.y() + ", " + a.z() + ")"
                     + (a.manual() ? Loc.s(" · 手填", " · manual") : ""));
-            tooltip(g, font, mouseX + 12, mouseY - 4, Loc.s("双击改 Y / 名字 / 类型", "Double-click to edit Y / name / type"));
+            tooltip(g, font, mouseX + 12, mouseY - 4, Loc.s("双击改 X / Z / Y / 名字 / 类型",
+                    "Double-click to edit X / Z / Y / name / type"));
         }
         Alignment.Corner near = nearestCorner(al, view, mouseX, mouseY);
         if (near != null) {
@@ -519,7 +531,7 @@ public final class PlannerRenderer {
         }
     }
 
-    /** 双击顶点之后浮在旁边的编辑框：Y、名字、类型三行。 */
+    /** 双击顶点之后浮在旁边的编辑框：X、Z、Y、名字、类型五行。 */
     private static void drawPointEditor(GuiGraphicsExtractor g, MapView view, RailRoute route) {
         int index = Planner.editIndex();
         if (route == null || index < 0 || index >= route.anchors.size()) {
@@ -531,7 +543,7 @@ public final class PlannerRenderer {
         String head = Loc.s("点 ", "Point ") + (index + 1) + " · " + Planner.editKind().label();
         String hint = Loc.s("Tab 换行 · ← → 换类型 · 回车保存 · Esc 取消", "Tab next field · ← → change type · Enter save · Esc cancel");
         int w = Math.max(278, font.width(hint) + 18);
-        int h = 86;
+        int h = 126;
         int anchorX = (int) view.guiX(a.x() + 0.5);
         int anchorY = (int) view.guiY(a.z() + 0.5);
         int x = anchorX + 14;
@@ -543,11 +555,13 @@ public final class PlannerRenderer {
         y = Math.max(4, Math.min(y, Math.max(4, view.height() - h - 4)));
         panel(g, x, y, w, h);
         g.text(font, head, x + 9, y + 5, TITLE);
-        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "Y", Planner.editYText());
-        rowLine(g, font, x + 9, y + 38, w - 18, row == 1, Loc.s("名字", "Name"), Planner.editNameText());
-        rowLine(g, font, x + 9, y + 57, w - 18, row == 2, Loc.s("类型", "Type"),
+        rowLine(g, font, x + 9, y + 19, w - 18, row == 0, "X", Planner.editXText());
+        rowLine(g, font, x + 9, y + 38, w - 18, row == 1, "Z", Planner.editZText());
+        rowLine(g, font, x + 9, y + 57, w - 18, row == 2, "Y", Planner.editYText());
+        rowLine(g, font, x + 9, y + 76, w - 18, row == 3, Loc.s("名字", "Name"), Planner.editNameText());
+        rowLine(g, font, x + 9, y + 95, w - 18, row == 4, Loc.s("类型", "Type"),
                 "◀ " + Planner.editKind().label() + " ▶");
-        g.text(font, hint, x + 9, y + 74, DIM);
+        g.text(font, hint, x + 9, y + 112, DIM);
     }
 
     /** 一行「标签 + 输入框」，当前行高亮并带光标。 */

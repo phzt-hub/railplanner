@@ -27,6 +27,7 @@
   "railplanner.config.poi_edit_on": "Right-click edit: on",
   "railplanner.config.poi_edit_off": "Right-click edit: off",
   "railplanner.config.poi_item": "Item",
+  "railplanner.config.lock_item": "Chain item",
   "railplanner.config.world_range": "Range: %s blocks",
   "railplanner.config.lock_on": "Lock points: on",
   "railplanner.config.lock_off": "Lock points: off",

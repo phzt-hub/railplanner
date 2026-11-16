@@ -14,7 +14,7 @@ A railway alignment tool that lives inside **Xaero's World Map**: click a few ti
 
 Close the map when you're done and the line still stands in the **3D world**: one design-elevation line, one terrain line, and tunnels and bridges fenced off with translucent faces over the volume that "must be dug / must be bridged" — tunnels blue, bridges orange. One walk along the route and you know where to dig and where to build. While editing, every point you clicked is marked too; lock them with `L` and a slip of the hand can't drag one out of place.
 
-Every point you click also carries a **Y (elevation)**: by default it's the height of the highest block in that column, and **double-clicking a vertex** lets you change it — the same box also gives the point a name and a kind (station, curve control point, tunnel portal, bridge, signal, plain), each drawn as its own shape on the map and in the world. A line's own name and colour live one double-click away on the panel's name row (12-colour swatches plus a hue bar, or plain RGB); and to add a point in the middle of a line that's already drawn, **Ctrl + click** on it.
+Every point you click also carries **X / Z / Y**: **double-click a vertex** and a five-row box opens — coordinates, name, kind (station, curve control point, tunnel portal, bridge, signal, plain). X / Z can be typed in to put the point on an exact column; Y defaults to the highest block of that column and stays wherever you type it, no longer overwritten by the ground height. Each kind is drawn as its own shape on the map and in the world. A line's own name and colour live one double-click away on the panel's name row (12-colour swatches plus a hue bar, or plain RGB); and to add a point in the middle of a line that's already drawn, **Ctrl + click** on it.
 
 Since 0.6.0 it is **two-sided**: drop the same jar on the server and the server stores one copy per player by UUID (players can't see each other's), while the local copy stays. When both sides changed the same route, the screen asks you route by route which side to keep. Change machines or reinstall the client and the routes are still there. It also takes updating into its own hands — finds a new version, downloads it, verifies the sha256 GitHub publishes, and replaces the jar in `mods` in place; the panel gains a "Restart now（立即重启）" button.
 
@@ -22,14 +22,14 @@ Since 0.6.0 it is **two-sided**: drop the same jar on the server and the server 
 - **Two-sided**: without the server mod it's purely local; with it the server keeps one copy per UUID while the local copy stays, and when both sides changed, it asks you route by route which side to keep
 - The client **must have Xaero's World Map ≥ 1.47**; the server needs only Fabric API, not Xaero
 - No Xaero code is modified or repackaged — the mod only hooks into its map screen with a mixin
-- **Points can be edited in the world too**: with rails (or any item you configure) in your main hand, right-click a point's pin and the same Y / name / kind box opens — no trip back to the map just to fix one elevation
-- Current version **0.8.3**
+- **Points can be edited in the world too**: with rails (or any item you configure) in your main hand, right-click a point's pin and the same X / Z / Y / name / kind box opens — no trip back to the map, and the coordinates can be typed in when you are copying them off a map
+- Current version **0.9.0**
 
 ![Picking a route on the map](docs/screenshot.png)
 
 ## Install
 
-**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.8.3.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
+**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.9.0.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
 
 **Server (optional)**: drop the same jar into the server's `mods/`; nothing to configure. The server only wants Fabric API — **no Xaero, and no client mods**. Without it you can still join; the data just stays on your machine.
 
@@ -42,8 +42,9 @@ Enter a world and press `B` to open the map in planning mode; a few left clicks 
 | `B` | Open the map in planning mode / toggle planning ↔ read-only while the map is open |
 | Left / right click | Add a point, drag a vertex / delete a point |
 | Ctrl + left-click on a line | Insert a point between two existing ones (snapped onto the line, shape unchanged) |
-| Double-click a vertex | Change that point's Y / name / kind: Tab moves rows, ← → cycles the kind, Enter confirms |
-| Main hand on the trigger item, right-click a point | Edit that point's Y / name / kind in the world (the same box, see §6.5) |
+| Double-click a vertex | Change that point's X / Z / Y / name / kind (five rows): Tab moves rows, ← → cycles the kind, Enter confirms |
+| Main hand on the trigger item, right-click a point | Edit that point's X / Z / Y / name / kind in the world (the same box, see §6.5) |
+| Main hand on a chain, right-click a point | Lock / unlock just that one point: locked, it cannot be dragged; every other point still can |
 | Double-click the panel's name row | Change this line's name and colour (swatches / hue bar / RGB) |
 | `Enter` · `Delete` | Finish and save · undo the last point |
 | `R` · `Shift+R` | Curve radius ×1.25 · ×0.8 (4–200 blocks) |
@@ -88,7 +89,7 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.3.jar`.
+Output: `build/libs/railplanner-0.9.0.jar`.
 
 Self-checks: `./tools/geom-check.sh` (curve parameters and rasterisation continuity), `./tools/vertical-check.sh` (points pinned, grade limit, straight-line fallback), `./tools/version-check.sh` (version comparison). None of them starts the game.
 

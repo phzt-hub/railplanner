@@ -8,7 +8,7 @@
 | Summary | `summary.txt`（231 字符，一句话讲清「在地图上选线 → 得到能铺的线」） |
 | Description | `description.md` 全文，从 `# Rail Planner` 到最后一行的 MIT（中间 `---` 之后是中文对照，英文用户滚到那儿也无所谓，中文用户正好接上） |
 | Description（贴用版） | `RailPlanner-CurseForge-Description.docx` —— 打开、翻到第 2 页、全选、Ctrl+V，格式不用再调。第 1 页是说明，别复制 |
-| Changelog（文件页） | `changelog-0.8.3.md` |
+| Changelog（文件页） | `changelog-0.9.0.md` |
 | Category | Map and Information（最贴）。CF 只让选一个主分类 |
 | License | MIT（CF 内置列表里有，不要选 Custom） |
 | Game version | 26.3 |
@@ -47,13 +47,13 @@ python3 tools/make-cf-docx.py --no-images   # 只出文字，约 46 KB
 | 2 | `docs/world-lines.png` | The same line standing in the 3D world |
 | 3 | `docs/world-lines-xray.png` | Press X: the same line seen through terrain |
 | 4 | `docs/route-editor.png` | Rename and recolour a route |
-| 5 | `docs/point-y.png` | Double-click a vertex: Y, name, type |
+| 5 | `docs/point-y.png` | Double-click a vertex: coordinates, name, kind |
 | 6 | `docs/collapsed.png` | H collapses the panel to one line |
 | 7 | `docs/settings.png` | Settings page (U, or Mod Menu) |
 
 第一张会当封面，选 `screenshot.png`（面板 + 地图同框，信息量最大）。
 
-七张都是 **1920×1080、英文客户端、无窗口边框、无教程浮层、无命令回显**（`run/` 里那台 1920×1080 的 X 服务 + `x11grab` 抓帧）。
+七张都是**英文客户端、无窗口边框、无教程浮层、无命令回显**；最早几张是 1920×1080（专用 X 服务 + `x11grab` 抓帧），2026-11 换过的四张（`poi-editor` / `poi-lock` / `settings` / `point-y`）是 1440×900。
 换图时照这四条走，别用桌面整屏截图——上一版封面里就带进了一个浏览器窗口。
 
 ## 依赖怎么填
@@ -67,12 +67,12 @@ python3 tools/make-cf-docx.py --no-images   # 只出文字，约 46 KB
 ## 发布前核对
 
 ```sh
-ls -l build/libs/railplanner-0.8.3.jar
-md5sum build/libs/railplanner-0.8.3.jar
-unzip -l build/libs/railplanner-0.8.3.jar | grep -E 'fabric.mod.json|icon.png'
+ls -l build/libs/railplanner-0.9.0.jar
+md5sum build/libs/railplanner-0.9.0.jar
+unzip -l build/libs/railplanner-0.9.0.jar | grep -E 'fabric.mod.json|icon.png'
 ```
 
-- jar 名与 `gradle.properties` 的版本一致（0.8.3）
+- jar 名与 `gradle.properties` 的版本一致（0.9.0）
 - 上传的是 `build/libs/` 里那个**没被 `-sources` 污染的**主 jar
 - 文件页的「Game version」勾 26.3，「Mod loader」勾 Fabric，两样都勾错会直接被玩家下载到崩溃
 
@@ -85,5 +85,5 @@ unzip -l build/libs/railplanner-0.8.3.jar | grep -E 'fabric.mod.json|icon.png'
 ## 改哪里
 
 - 改语气/加卖点 → `description.md`，英文段在前、中文段在 `---` 之后
-- 加新版本 → 复制一份 `changelog-0.8.3.md` 改名，按 git log 提炼（`git log --oneline <上个 tag>..HEAD`）
+- 加新版本 → 复制一份 `changelog-0.9.0.md` 改名，按 git log 提炼（`git log --oneline <上个 tag>..HEAD`）
 - 改一句话简介 → `summary.txt`，CF 的 Summary 框不长，超了会被截断

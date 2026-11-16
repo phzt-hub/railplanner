@@ -20,15 +20,17 @@ Your time is yours to waste. But this thing can genuinely turn a weekend into a 
 
 **Alignment geometry, not a polyline.** Every corner is filleted into tangent–arc–tangent with one shared radius (default 24 blocks, adjustable 4–200). `R` scales it by 1.25, `Shift+R` by 0.8. Where two points sit too close for the arc to fit, the radius is quietly reduced, and the panel reports the smallest radius you actually ended up with — so you never look at a curve the geometry had to cheat on.
 
-**A vertical profile pinned to your points.** Every point carries a Y, defaulting to the top block of its column. Double-click a vertex to edit it. Between points the profile runs at your design gradient (default 8%, 1–30%, set with `[` and `]`), and stays pinned to the Y values you chose. If two points are too far apart in height for your gradient, that span is drawn straight and the grade turns red — the program telling you to move a point or change a Y, not a bug.
+**A vertical profile pinned to your points.** Every point carries X / Z / Y: Y defaults to the top block of its column, and X / Z can be typed in by hand to drop the point on an exact column. Double-click a vertex to edit all three. Between points the profile runs at your design gradient (default 8%, 1–30%, set with `[` and `]`), and stays pinned to the Y values you chose. If two points are too far apart in height for your gradient, that span is drawn straight and the grade turns red — the program telling you to move a point or change a Y, not a bug.
 
 **A line you can walk along.** `V` shows the design line, the ground line and the fill/cut pillars in the world; `X` shows them through terrain. Tunnels are blue, bridges orange, so a glance answers “dig here or build up here”. Default range 256 blocks.
 
 **Numbers with a definition.** Real arc length versus block length (the second one is what you buy), curve segments, minimum radius, maximum deflection, ground max grade (terrain smoothed over a 5-block window so trees don't count), design max grade, total climb and descent, tunnel / bridge / ground / unknown mileage, rails, powered rails (1 per 16), torches (1 per 10), and cart travel time at 8 and 4 blocks per second.
 
-**Points with identity.** Double-click a vertex for three fields: Y, name, and type — plain, station, curve control point, tunnel portal, bridge, signal. Each type gets its own glyph, on the map and in the world. Double-click the route name on the panel to rename the line and recolour it: 12-swatch palette, hue bar, or raw RGB.
+**Points with identity.** Double-click a vertex for five fields: X, Z, Y, name, and type — plain, station, curve control point, tunnel portal, bridge, signal. Each type gets its own glyph, on the map and in the world. Double-click the route name on the panel to rename the line and recolour it: 12-swatch palette, hue bar, or raw RGB.
 
-**Edit a point in the world, too.** With the trigger item in hand (rails by default) and the crosshair on a point's vertical pin, a right-click opens the very same three-field box — no need to open the map just to fix one elevation. The item and an on/off switch live in the left column of the settings page.
+**Edit a point in the world, too.** With the trigger item in hand (rails by default) and the crosshair on a point's vertical pin, a right-click opens the very same five-field box — no need to open the map just to fix one elevation. The item and an on/off switch live in the left column of the settings page.
+
+**Lock one point, not all of them.** With a chain in your main hand (the item is configurable, default \`minecraft:iron_chain\`), right-click a point's pin and it flips that one point's lock: locked, it refuses to be dragged while every other point still moves. The lock is stored with the point, travels through the server sync, and the point is dimmed on the map and in the world so you can see it at a glance. \`L\` still locks every point at once, and turning the world-item switch off leaves the chain working — otherwise a locked point could never be unlocked again.
 
 **Insert without reshaping.** Hold Ctrl and click on the line to insert a point between two existing ones. It snaps onto the curve, so the alignment stays exactly where it was.
 
@@ -50,7 +52,7 @@ The gallery walks through the whole loop: picking points on the map with the pan
 
 1. Install Fabric Loader for Minecraft 26.3 and put Fabric API in `mods/`.
 2. Put Xaero's World Map 1.47.x in `mods/`.
-3. Put `railplanner-0.8.3.jar` in `mods/`.
+3. Put `railplanner-0.9.0.jar` in `mods/`.
 4. Start the game, enter a world, press `B`.
 
 For a server, copy the same jar into the server's `mods/` and restart. Nothing to configure. Players without Rail Planner can still join; only the sync stops being available to them.
@@ -61,7 +63,8 @@ For a server, copy the same jar into the server's `mods/` and restart. Nothing t
 - Left click — add a point; drag a vertex
 - Right click — delete a point
 - Ctrl + left click on the line — insert a point
-- Double-click a vertex — edit Y, name, type
+- Double-click a vertex — edit X, Z, Y, name, type
+- Main hand on a chain + right-click a point — lock / unlock just that point
 - Hold the trigger item (rails) + right-click a point — edit that point in the world
 - Double-click the route name — rename, recolour
 - `Enter` — finish and save
@@ -124,15 +127,17 @@ Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟
 
 **是线形，不是折线。** 每个拐角都圆角化成切线—圆曲线—切线，全条线共用一个半径（默认 24 格，可调 4–200 格）。`R` 放大 1.25 倍，`Shift+R` 缩到 0.8 倍。相邻点太近、圆弧塞不下时程序会自动把半径压下来，面板显示你实际得到的最小半径——不会让你对着一条偷偷改过的曲线铺轨。
 
-**纵断面钉在你点的点上。** 每个点带一个 Y，默认取那一列最高方块，双击顶点就能改。两点之间按你设的设计限坡走（默认 8%，1–30%，`[` `]` 调），整条纵断面始终钉在你给的 Y 上。如果两点的高差超出这个限坡办得到的范围，这一段就按直线走、坡度标红——那是程序在说「挪点或者改 Y」，不是算错了。
+**纵断面钉在你点的点上。** 每个点带 X / Z / Y：Y 默认取那一列最高方块，X / Z 可以手输，把点放到准确的那一列上；双击顶点三样一起改。两点之间按你设的设计限坡走（默认 8%，1–30%，`[` `]` 调），整条纵断面始终钉在你给的 Y 上。如果两点的高差超出这个限坡办得到的范围，这一段就按直线走、坡度标红——那是程序在说「挪点或者改 Y」，不是算错了。
 
 **一条能在世界里走一遍的线。** `V` 在世界里画出设计线、地面线和填挖立柱，`X` 让它们穿透地形显示。隧道蓝、桥橙，抬眼就知道这段是该挖还是该架。默认显示范围 256 格。
 
 **每个数都有口径。** 曲线真实弧长与方块串长度分开算（后者才是你要买多少），圆曲线段数、最小半径、最大偏角、地面最大坡（地形先做 5 格窗口平滑，树不算）、设计最大坡、总爬升与总下降、隧道/桥/地面/未知的里程、铁轨、动力铁轨（每 16 格 1 个）、火把（每 10 格 1 个）、按 8 格/秒与 4 格/秒各算一次的矿车时间。
 
-**点有身份。** 双击顶点三行框：Y、名字、类型（普通点、车站、弯道控制点、隧道口、桥梁、信号机），每种类型在地图上和世界里各画一种形状。双击面板上那行线名，可以改线名和颜色：12 色色板、色相条、或者直接填 RGB。
+**点有身份。** 双击顶点五行框：X、Z、Y、名字、类型（普通点、车站、弯道控制点、隧道口、桥梁、信号机），每种类型在地图上和世界里各画一种形状。双击面板上那行线名，可以改线名和颜色：12 色色板、色相条、或者直接填 RGB。
 
-**点也能在世界里直接改。** 主手拿触发物品（默认铁轨），准星对准点位那根竖针右键，弹出的还是那个三行框——为了改一个标高不用再开地图。物品和开关都在设置页左栏。
+**点也能在世界里直接改。** 主手拿触发物品（默认铁轨），准星对准点位那根竖针右键，弹出的还是那个五行框——为了改一个标高不用再开地图。物品和开关都在设置页左栏。
+
+**只锁一个点，不是锁全部。** 主手拿锁链（物品可换，默认 \`minecraft:iron_chain\`），右键点位那根竖针，就把**这一个点**的锁翻过来：锁上就拖不动它，别的点照常拖。锁存在点上、跟着同步走，地图和世界里这个点都压暗一档，一眼看得出。\`L\` 仍然是「全锁」，而把「拿物品右键改点」关掉之后锁链那半照样能用——否则锁住的点就再也解不开了。
 
 **插点不破坏线形。** 按住 Ctrl 点那条线，新点插进光标所在的那一段，位置吸附到线上，线形一格都不会变。
 
@@ -142,13 +147,13 @@ Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟
 
 ## 安装
 
-**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.8.3.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
+**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.9.0.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
 
 **服务端（可选）**：同一个 jar 丢进服务端 `mods/`，不用改配置。服务端只要 Fabric API，不需要 Xaero，也不需要客户端模组；没装的玩家照样能进服，只是没有同步。
 
 ## 默认按键
 
-`B` 开图规划 / 规划↔只读 · 左键加点、拖顶点 · 右键删点 · Ctrl+左键点在线上插点 · 双击顶点改 Y/名字/类型 · 双击线名改名改色 · 拿物品右键点位改点 · `Enter` 完成存盘 · `Delete` 撤销 · `R` / `Shift+R` 半径 ×1.25 / ×0.8 · `[` `]` 限坡 ∓1%（`Shift` 5%）· `J` 自动选线 · `H` 折叠面板 · `U` 设置页 · `V` 3D 线开关 · `X` 穿山 · `L` 锁点。全部可在 选项 → 控制 → 按键绑定 → 铁路选线 里改。
+`B` 开图规划 / 规划↔只读 · 左键加点、拖顶点 · 右键删点 · Ctrl+左键点在线上插点 · 双击顶点改 X/Z/Y/名字/类型 · 双击线名改名改色 · 拿物品右键点位改点 · 拿锁链右键点位只锁这一点 · `Enter` 完成存盘 · `Delete` 撤销 · `R` / `Shift+R` 半径 ×1.25 / ×0.8 · `[` `]` 限坡 ∓1%（`Shift` 5%）· `J` 自动选线 · `H` 折叠面板 · `U` 设置页 · `V` 3D 线开关 · `X` 穿山 · `L` 锁点。全部可在 选项 → 控制 → 按键绑定 → 铁路选线 里改。
 
 ## 已知限制
 

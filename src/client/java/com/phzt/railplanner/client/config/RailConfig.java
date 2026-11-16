@@ -55,6 +55,14 @@ public final class RailConfig {
     public boolean poiEdit = true;
     /** 触发编辑框的物品 id，默认普通铁轨；写错只是不触发，不会崩。 */
     public String poiEditItem = "minecraft:rail";
+    /**
+     * 切换「这一点锁不锁」的物品 id，默认锁链：三维世界里拿着它右键点中一个点，
+     * 就把这一点的锁翻过来（锁上之后拖不动它）。写错只是不触发。
+     *
+     * <p>1.21.9 起锁链的 id 从 {@code minecraft:chain} 改成了 {@code minecraft:iron_chain}
+     * （显示名也成了 Iron Chain），本模组跟的是新版本，所以默认写新的那个。</p>
+     */
+    public String poiLockItem = "minecraft:iron_chain";
 
     /**
      * 停用本模组的全部快捷键与鼠标操作（防和其他模组抢键）。
@@ -123,14 +131,26 @@ public final class RailConfig {
         if (poiEditItem == null || poiEditItem.isBlank()) {
             poiEditItem = "minecraft:rail";
         }
+        if (poiLockItem == null || poiLockItem.isBlank()) {
+            poiLockItem = "minecraft:iron_chain";
+        }
         return this;
     }
 
     /** 规整过的触发物品 id：空着算普通铁轨，没写命名空间算 minecraft。 */
     public String poiItemId() {
-        String value = poiEditItem == null ? "" : poiEditItem.trim().toLowerCase(java.util.Locale.ROOT);
+        return normalizeItem(poiEditItem, "minecraft:rail");
+    }
+
+    /** 规整过的锁链物品 id：空着算锁链，没写命名空间算 minecraft。 */
+    public String lockItemId() {
+        return normalizeItem(poiLockItem, "minecraft:iron_chain");
+    }
+
+    private static String normalizeItem(String raw, String fallback) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(java.util.Locale.ROOT);
         if (value.isEmpty()) {
-            return "minecraft:rail";
+            return fallback;
         }
         return value.indexOf(':') >= 0 ? value : "minecraft:" + value;
     }

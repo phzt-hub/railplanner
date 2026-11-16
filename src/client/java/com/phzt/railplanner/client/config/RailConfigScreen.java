@@ -47,6 +47,9 @@ public class RailConfigScreen extends Screen {
     /** 触发物品那一行，输入框右边留出来画标题用。 */
     private EditBox poiItemField;
     private int poiRow;
+    /** 锁链物品那一行（右键切这一点的锁）。 */
+    private EditBox lockItemField;
+    private int lockRow;
 
     public RailConfigScreen(Screen parent) {
         super(Component.translatable("railplanner.config.title"));
@@ -122,6 +125,16 @@ public class RailConfigScreen extends Screen {
         this.poiItemField.setValue(RailConfig.get().poiEditItem);
         this.poiItemField.setResponder(value -> RailConfig.get().poiEditItem = value);
         this.addRenderableWidget(this.poiItemField);
+        left += ROW;
+
+        // 「锁链物品」：拿它在世界里右键点中一个点，切换这一点的锁（默认 minecraft:chain）
+        this.lockRow = left;
+        this.lockItemField = new EditBox(this.font, leftX + 64, left + 1, Math.max(40, colW - 64), 18,
+                Component.literal("minecraft:iron_chain"));
+        this.lockItemField.setMaxLength(64);
+        this.lockItemField.setValue(RailConfig.get().poiLockItem);
+        this.lockItemField.setResponder(value -> RailConfig.get().poiLockItem = value);
+        this.addRenderableWidget(this.lockItemField);
         left += ROW;
 
         this.addRenderableWidget(Button.builder(labelRange(), b -> {
@@ -247,6 +260,7 @@ public class RailConfigScreen extends Screen {
         g.text(this.font, Component.translatable("railplanner.config.col_world"), leftX, headerY, HEADER);
         g.text(this.font, Component.translatable("railplanner.config.col_edit"), rightX, headerY, HEADER);
         g.text(this.font, Component.translatable("railplanner.config.poi_item"), leftX, poiRow + 5, HEADER);
+        g.text(this.font, Component.translatable("railplanner.config.lock_item"), leftX, lockRow + 5, HEADER);
 
         int text = 0xFFE6E6E6;
         int y = infoTop;

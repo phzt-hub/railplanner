@@ -174,7 +174,8 @@ public final class RouteGizmos {
             if (high - low < FLAG_MIN) {
                 high = low + FLAG_MIN;
             }
-            int color = anchorColor(i, count, locked);
+            // 全局锁或这一点自己的锁，画出来都压暗：一眼能看出「这根拖不动」。
+            int color = anchorColor(i, count, locked || a.locked());
 
             GizmoProperties pin = Gizmos.line(new Vec3(cx, low + 1.0, cz), new Vec3(cx, high + 1.0, cz),
                     color, 2.0f);
@@ -211,7 +212,7 @@ public final class RouteGizmos {
         }
     }
 
-    /** 起点绿、终点红、中间白；锁住时压暗。 */
+    /** 起点绿、终点红、中间白；锁住时压暗（全局锁和单点锁都算）。 */
     private static int anchorColor(int index, int count, boolean locked) {
         int color = index == 0 ? ANCHOR_FIRST : (index == count - 1 && count > 1 ? ANCHOR_LAST : ANCHOR_MID);
         return locked ? (0x80 << 24) | (color & 0x00FFFFFF) : color;

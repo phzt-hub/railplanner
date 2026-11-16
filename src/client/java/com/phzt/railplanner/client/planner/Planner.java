@@ -1,6 +1,7 @@
 package com.phzt.railplanner.client.planner;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
@@ -52,12 +53,20 @@ public final class Planner {
 
     /** 点位编辑框：-1 表示没开。 */
     private static int editIndex = -1;
-    /** 点位编辑框停在那一行：0 = Y，1 = 名字，2 = 类型。 */
+    /** 点位编辑框停在那一行：0 = X，1 = Z，2 = Y，3 = 名字，4 = 类型。 */
     private static int editRow;
+    /** 框里一共几行。 */
+    private static final int EDIT_ROWS = 5;
+    /** 名字在第几行：非 ASCII（输入法提交的汉字）只往这一行塞。 */
+    private static final int EDIT_ROW_NAME = 3;
+    /** 类型在第几行：只认 ← →。 */
+    private static final int EDIT_ROW_KIND = 4;
+    private static String editX = "";
+    private static String editZ = "";
     private static String editY = "";
     private static String editName = "";
     private static PointKind editKind = PointKind.PLAIN;
-    /** Y 行刚打开时是「全选」状态：敲第一个数字直接换掉原来的值。 */
+    /** 坐标行刚切过去时是「全选」状态：敲第一个数字直接换掉原来的值。 */
     private static boolean editReplace;
 
     /** 线路编辑框（名字 + 颜色）：行 0 = 名字，1 = 色板，2 = RGB 输入。 */
@@ -244,6 +253,45 @@ public final class Planner {
     }
 
     /**
+     * 切换「这一个点」的锁：世界里拿锁链右键点中它，或者编辑框里点那个按钮。
+     *
+     * <p>和 {@link #toggleLock()} 不是一回事：那个是配置里的全局开关，一锁全锁；
+     * 这个是点自己的标记，只让自己拖不动，别的点照旧。锁值随点落盘、随线同步，
+     * 所以换台机器进这个存档，锁着的点还是锁着的。</p>
+     *
+     * @return 真翻过来了才 true
+     */
+    public static boolean toggleAnchorLock(RailRoute route, int index) {
+        if (route == null || index < 0 || index >= route.anchors.size()) {
+            return false;
+        }
+        Anchor a = route.anchors.get(index);
+        Anchor next = a.withLocked(!a.locked());
+        route.anchors.set(index, next);
+        if (next.locked() && dragIndex == index) {
+            dragIndex = -1;
+        }
+        markDirty();
+        saveNow();
+        toast(next.locked()
+                ? Loc.s("点 " + (index + 1) + " → 已锁定，拖不动了", "Point " + (index + 1) + " → locked")
+                : Loc.s("点 " + (index + 1) + " → 解锁，可以拖了", "Point " + (index + 1) + " → unlocked"));
+        LOG.info("点 {} 的锁 → {}（名字「{}」· {}，来自锁链物品 {}）", index + 1, next.locked() ? "锁上" : "解开",
+                next.name(), next.kind().label, RailConfig.get().lockItemId());
+        return true;
+    }
+
+    /** 锁链物品给人看的名字：默认那根就写「锁链」，改成别的就退回物品 id 的尾巴。 */
+    public static String lockItemLabel() {
+        String id = RailConfig.get().lockItemId();
+        if ("minecraft:iron_chain".equals(id) || "minecraft:chain".equals(id)) {
+            return Loc.s("锁链", "a chain");
+        }
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
+    }
+
+    /**
      * 一句话提示：世界里的走 HUD 上那行，地图里另外画一行——地图开着的时候 HUD 被挡在后面，
      * 「拖不动」这种反馈必须在地图里看得见，否则玩家会以为是自己没点中。
      */
@@ -386,7 +434,7 @@ public final class Planner {
             }
         }
         if (active && dragIndex >= 0 && current != null && dragIndex < current.anchors.size()
-                && !RailConfig.get().anchorLock) {
+                && !RailConfig.get().anchorLock && !current.anchors.get(dragIndex).locked()) {
             int bx = (int) Math.floor(view.worldX(mouseX));
             int bz = (int) Math.floor(view.worldZ(mouseY));
             Anchor old = current.anchors.get(dragIndex);
@@ -456,7 +504,13 @@ public final class Planner {
             }
             if (hit >= 0) {
                 if (RailConfig.get().anchorLock) {
-                    toast("点已锁定，拖不动（" + RailPlannerClient.keyName(RailPlannerClient.LOCK) + " 解锁）");
+                    toast(Loc.s("点已锁定，拖不动（" + RailPlannerClient.keyName(RailPlannerClient.LOCK) + " 解锁）",
+                            "Points are locked (" + RailPlannerClient.keyName(RailPlannerClient.LOCK) + " unlocks)"));
+                    return true;
+                }
+                if (current.anchors.get(hit).locked()) {
+                    toast(Loc.s("这一点锁着，拖不动（拿 " + lockItemLabel() + " 右键它解锁）",
+                            "This point is locked (right-click it with " + lockItemLabel() + " to unlock)"));
                     return true;
                 }
                 dragIndex = hit;
@@ -682,7 +736,9 @@ public final class Planner {
                     continue;
                 }
                 int h = RouteStats.height(mp, a.x(), a.z());
-                Anchor fixed = h == XaeroTerrain.UNKNOWN ? new Anchor(a.x(), a.z()) : Anchor.auto(a.x(), a.z(), h);
+                // 解析只换标高，名字、类型、锁都得原样带过去，不然一解析全归零。
+                Anchor fixed = (h == XaeroTerrain.UNKNOWN ? new Anchor(a.x(), a.z()) : Anchor.auto(a.x(), a.z(), h))
+                        .withName(a.name()).withKind(a.kind()).withLocked(a.locked());
                 if (fixed.equals(a)) {
                     continue;
                 }
@@ -709,9 +765,17 @@ public final class Planner {
         return isEditing() ? editIndex : -1;
     }
 
-    /** 点位编辑框停在哪一行：0 = Y，1 = 名字，2 = 类型。 */
+    /** 点位编辑框停在哪一行：0 = X，1 = Z，2 = Y，3 = 名字，4 = 类型。 */
     public static int editRow() {
         return editRow;
+    }
+
+    public static String editXText() {
+        return editX;
+    }
+
+    public static String editZText() {
+        return editZ;
     }
 
     public static String editYText() {
@@ -760,6 +824,8 @@ public final class Planner {
         Anchor a = current.anchors.get(index);
         editIndex = index;
         editRow = 0;
+        editX = String.valueOf(a.x());
+        editZ = String.valueOf(a.z());
         editY = String.valueOf(a.y());
         editName = a.name();
         editKind = a.kind();
@@ -769,6 +835,8 @@ public final class Planner {
     private static void closePointEditor() {
         editIndex = -1;
         editRow = 0;
+        editX = "";
+        editZ = "";
         editY = "";
         editName = "";
         editKind = PointKind.PLAIN;
@@ -778,38 +846,60 @@ public final class Planner {
     /** 回车 / 点地图别处：把框里的东西写进这个点。 */
     private static void commitPointEditor() {
         int index = editIndex;
+        String xText = editX;
+        String zText = editZ;
         String yText = editY;
         String name = editName;
         PointKind kind = editKind;
+        RailRoute route = current;
         closePointEditor();
-        if (current == null || index < 0 || index >= current.anchors.size()) {
+        if (route == null || index < 0 || index >= route.anchors.size()) {
             return;
         }
-        Anchor a = current.anchors.get(index);
-        int y = a.y();
-        String text = yText.trim();
-        if (!text.isEmpty() && !"-".equals(text)) {
-            try {
-                y = Integer.parseInt(text);
-            } catch (NumberFormatException ignored) {
-                // 不是整数就当没填
-            }
+        Anchor a = route.anchors.get(index);
+        // 空着、只剩一个减号的，当没填，保留原来的值。
+        int x = parseCoord(xText, a.x());
+        int z = parseCoord(zText, a.z());
+        int y = parseCoord(yText, a.y());
+        applyAnchorEdit(route, index, x, z, y, name, kind, a.locked());
+    }
+
+    /** 框里那串字读成坐标：空着 / 不是整数就落回原来的值，越界的由 {@link #applyAnchorEdit} 夹。 */
+    private static int parseCoord(String text, int fallback) {
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty() || "-".equals(trimmed) || "+".equals(trimmed)) {
+            return fallback;
         }
-        applyAnchorEdit(current, index, y, name, kind);
+        try {
+            return Integer.parseInt(trimmed);
+        } catch (NumberFormatException ignored) {
+            // 不是整数就当没填
+            return fallback;
+        }
     }
 
     /**
-     * 改一个点的 Y / 名字 / 类型。地图里的点位框和世界里的编辑框都走这一条，
+     * 改一个点的 X / Z / Y / 名字 / 类型 / 锁。地图里的点位框和世界里的编辑框都走这一条，
      * 免得两处各写一套夹值、trim 和日志。
+     *
+     * <p>X / Z 是手输的：换了列但 Y 不动——玩家既然亲手填了坐标，标高就该由他自己决定，
+     * 而不是被新那一列的地面高度顶掉。夹值夹在世界边界以内（±{@link Anchor#MAX_XZ}），
+     * 否则线会画到区块永远不会加载的地方去。</p>
      *
      * @return 真改动了才 true（值全一样就不落盘、不推同步）
      */
-    public static boolean applyAnchorEdit(RailRoute route, int index, int y, String name, PointKind kind) {
+    public static boolean applyAnchorEdit(RailRoute route, int index, int x, int z, int y, String name,
+            PointKind kind, boolean locked) {
         if (route == null || index < 0 || index >= route.anchors.size()) {
             return false;
         }
         Anchor a = route.anchors.get(index);
         Anchor next = a;
+        int nx = Math.max(-Anchor.MAX_XZ, Math.min(Anchor.MAX_XZ, x));
+        int nz = Math.max(-Anchor.MAX_XZ, Math.min(Anchor.MAX_XZ, z));
+        if (nx != a.x() || nz != a.z()) {
+            next = next.at(nx, nz);
+        }
         int value = Math.max(-1024, Math.min(1024, y));
         if (value != a.y()) {
             next = next.withY(value);
@@ -824,14 +914,19 @@ public final class Planner {
         if (kind != null && kind != a.kind()) {
             next = next.withKind(kind);
         }
+        if (locked != a.locked()) {
+            next = next.withLocked(locked);
+        }
         if (next.equals(a)) {
             return false;
         }
         route.anchors.set(index, next);
         route.invalidate();
         markDirty();
-        LOG.info("点 {}：Y {} · 名字「{}」· {}（原 {} / {} / {}）", index + 1, next.y(), next.name(),
-                next.kind().label, a.y(), a.name().isEmpty() ? "没名字" : a.name(), a.kind().label);
+        LOG.info("点 {}：({}, {}, {}) · 名字「{}」· {} · {}（原 ({}, {}, {}) · {} · {}）", index + 1,
+                next.x(), next.y(), next.z(), next.name(), next.kind().label,
+                next.locked() ? "锁着" : "不锁", a.x(), a.y(), a.z(),
+                a.name().isEmpty() ? "没名字" : a.name(), a.kind().label);
         return true;
     }
 
@@ -1001,7 +1096,7 @@ public final class Planner {
         return String.format("%06X", rgb & 0xFFFFFF);
     }
 
-    /** 点位编辑框里的按键：Tab/上下换行，方向键换类型，回车保存，Esc 取消。 */
+    /** 点位编辑框里的按键：Tab/上下换行，类型行用方向键，回车保存，Esc 取消。 */
     private static boolean pointEditKey(KeyEvent event) {
         int key = event.key();
         if (key == InputConstants.KEY_ESCAPE) {
@@ -1016,30 +1111,34 @@ public final class Planner {
         if (key == InputConstants.KEY_TAB || key == InputConstants.KEY_DOWN || key == InputConstants.KEY_UP) {
             boolean back = key == InputConstants.KEY_UP
                     || (key == InputConstants.KEY_TAB && event.hasShiftDown());
-            editRow = (editRow + (back ? 2 : 1)) % 3;
-            editReplace = editRow == 0;
+            editRow = (editRow + (back ? EDIT_ROWS - 1 : 1)) % EDIT_ROWS;
+            editReplace = editRow < EDIT_ROW_NAME;
             return true;
         }
-        if (editRow == 2) {
+        if (editRow == EDIT_ROW_KIND) {
             if (key == InputConstants.KEY_LEFT) {
                 editKind = editKind.shift(-1);
-                return true;
-            }
-            if (key == InputConstants.KEY_RIGHT) {
+            } else if (key == InputConstants.KEY_RIGHT) {
                 editKind = editKind.shift(1);
-                return true;
             }
+            return true;
         }
         if (key == InputConstants.KEY_BACKSPACE) {
             if (editRow == 0) {
-                editY = editReplace ? "" : dropLast(editY);
+                editX = editReplace ? "" : dropLast(editX);
                 editReplace = false;
             } else if (editRow == 1) {
+                editZ = editReplace ? "" : dropLast(editZ);
+                editReplace = false;
+            } else if (editRow == 2) {
+                editY = editReplace ? "" : dropLast(editY);
+                editReplace = false;
+            } else {
                 editName = dropLast(editName);
             }
             return true;
         }
-        if (event.hasControlDown() && key == InputConstants.KEY_V && editRow == 1) {
+        if (event.hasControlDown() && key == InputConstants.KEY_V && editRow == EDIT_ROW_NAME) {
             editName = cutText(editName + clipboard());
             return true;
         }
@@ -1047,15 +1146,31 @@ public final class Planner {
         if (c == 0) {
             return true;
         }
-        if (editRow == 0) {
+        if (editRow < EDIT_ROW_NAME) {
+            // X / Z / Y 三行只收数字和负号
             if ((c >= '0' && c <= '9') || c == '-') {
-                editY = editReplace ? String.valueOf(c) : cutText(editY + c);
+                String text = editReplace ? String.valueOf(c) : cutText(rowText(editRow) + c);
                 editReplace = false;
+                setRowText(editRow, text);
             }
-        } else if (editRow == 1) {
+        } else {
             editName = cutText(editName + c);
         }
         return true;
+    }
+
+    private static String rowText(int row) {
+        return row == 0 ? editX : row == 1 ? editZ : editY;
+    }
+
+    private static void setRowText(int row, String text) {
+        if (row == 0) {
+            editX = text;
+        } else if (row == 1) {
+            editZ = text;
+        } else {
+            editY = text;
+        }
     }
 
     /** 线路编辑框里的按键：Tab 在三行之间转，色板行用 ←→ 调色相，RGB 行用 ←→ 选通道。 */
@@ -1164,7 +1279,7 @@ public final class Planner {
             return false;
         }
         String text = new String(Character.toChars(codepoint));
-        if (isEditing() && editRow == 1) {
+        if (isEditing() && editRow == EDIT_ROW_NAME) {
             editName = cutText(editName + text);
             return true;
         }

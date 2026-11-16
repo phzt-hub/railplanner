@@ -25,7 +25,7 @@ GALLERY = [
     ("world-lines.png", "The same line standing in the 3D world"),
     ("world-lines-xray.png", "Press X: the same line seen through terrain"),
     ("route-editor.png", "Rename and recolour a route"),
-    ("point-y.png", "Double-click a vertex: Y, name, type"),
+    ("point-y.png", "Double-click a vertex: coordinates, name, kind"),
     ("collapsed.png", "H collapses the panel to one line"),
     ("settings.png", "Settings page (U, or Mod Menu)"),
 ]

@@ -40,7 +40,7 @@ Technically it reads **the height data Xaero's World Map has already stored**: i
 
 1. Minecraft **26.3** + **Fabric Loader 0.19.5** (Java 25 runtime)
 2. The client must have **Fabric API** and **Xaero's World Map ≥ 1.47**
-3. Drop `railplanner-0.8.3.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
+3. Drop `railplanner-0.9.0.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
 4. **The server side is optional**: drop the same jar into the server's `mods/`, no config changes. With it installed, data is stored per UUID on the server and comes back automatically when you change machines; without it, it is purely local, exactly like 0.5.0. The server **does not need Xaero** and needs no client mods either
 
 ### Use
@@ -122,10 +122,11 @@ With the map closed there is a shorter version of the same bar in the top-left o
 | Left click on the map | — | Add an anchor (snapped to the block grid) | Planning mode |
 | Left-drag a vertex | — | Move that point | Planning mode |
 | Right-click a vertex | — | Delete this one point (**the only way to delete a middle point**) | Planning mode |
-| Main hand on the trigger item, right-click a point | — | Edit that point's **Y / name / kind** right in the world: the same box, firing only when the crosshair is on its pin (see [§6.5](#65-editing-a-point-in-the-world)) | In the world, with the map closed |
+| Main hand on the trigger item, right-click a point | — | Edit that point's **X / Z / Y / name / kind** right in the world: the same box, firing only when the crosshair is on its pin (see [§6.5](#65-editing-a-point-in-the-world)) | In the world, with the map closed |
+| Main hand on a chain, right-click a point | — | Toggle **this one point's** lock: locked, it cannot be dragged; every other point still can. No box, just that one flag (see [§6.5](#65-editing-a-point-in-the-world)) | In the world, with the map closed |
 | Left click on an existing line | — | Click within 6 pixels of a line to pick that line up and keep editing it | Planning mode |
 | `Ctrl` + left-click on a line | — | **Insert** a point between two existing ones, snapped onto the nearest point of the line (shape unchanged) | Planning mode |
-| Double-click a vertex | — | Change that point's **Y / name / kind**: three rows, `Tab` moves, `←` `→` cycles the kind, Enter saves, Esc cancels | Planning mode |
+| Double-click a vertex | — | Change that point's **X / Z / Y / name / kind**: five rows, `Tab` moves, `←` `→` cycles the kind, Enter saves, Esc cancels (the world box is the same thing, see [§6.5](#65-editing-a-point-in-the-world)) | Planning mode |
 | Double-click the panel's name row | — | Change this line's **name and colour**: click a swatch, drag the hue bar, or type RGB | Planning mode |
 | Left-drag empty space | — | Pan the map as usual | Any state |
 | `Enter` | Finish route（完成这条线） | Saves; the next click starts a new route | Planning mode |
@@ -209,9 +210,11 @@ Every point carries a Y, which is **the design elevation where the line passes t
 
 **Default**: at the moment you click, it takes **the height of the highest block** in that column (the ground surface without leaves, the same height the panel's "terrain max grade" uses). If that area hasn't been seen by the map yet and the chunk isn't loaded, it records **64** for now, and switches to the real height once Xaero has explored the area (or the chunk has been loaded).
 
-**How to change it**: hover a vertex and **double-click**; a box appears next to it and its first row is `Y`: digits / minus to type (fully selected on open, so the first digit replaces the old value), Backspace deletes, `Enter` saves, `Esc` cancels, clicking elsewhere on the map saves too. The same box has `名字` (name) and `类型` (kind) rows — see [6.4](#64-point-names-point-kinds-and-line-colours).
+**How to change it**: hover a vertex and **double-click**; a box appears next to it whose first three rows are `X`, `Z` and `Y`: digits / minus to type (fully selected on open, so the first digit replaces the old value), Backspace deletes, `Enter` saves, `Esc` cancels, clicking elsewhere on the map saves too. The same box has `名字` (name) and `类型` (kind) rows — see [6.4](#64-point-names-point-kinds-and-line-colours).
 
-![Double-click a vertex to set its Y](point-y.png)
+Typing `X` / `Z` moves the point to another column and leaves `Y` at whatever number you typed — **you set the coordinate by hand, so you decide the elevation**; it is not overwritten by the ground height of the new column. To re-sample the ground, clear `Y` and press Enter.
+
+![Double-click a vertex to set its coordinates](point-y.png)
 
 A point you edited is marked "manual"; dragging it only changes its position, not its elevation. A point you didn't edit re-samples the ground height when dragged to a new position.
 
@@ -228,11 +231,12 @@ Code: `Anchor` (each point carries y, manual, resolved), `VerticalProfile` (pure
 
 ### 6.4 Point names, point kinds and line colours
 
-**A point's name and kind** live in the box you open by double-clicking a vertex. Three rows:
+**A point's coordinates, name and kind** live in the box you open by double-clicking a vertex. Five rows:
 
 | Row | How |
 |---|---|
-| `Y` | digits / minus, Backspace; fully selected on open, so the first digit replaces the old value |
+| `X` / `Z` | digits (minus allowed), Backspace; fully selected on open, so the first digit replaces the old value; clamped to ±30000000 |
+| `Y` | the same, clamped to -1024 … 1024 |
 | `名字` (name) | just type (ASCII through key codes, CJK through your IME or `Ctrl+V` paste), up to 24 characters |
 | `类型` (kind) | `←` `→` cycles the six kinds below |
 
@@ -269,36 +273,42 @@ New lines don't need you to pick a colour: they take one from the 7-colour palet
 
 The same box, reached a second way: **hold the trigger item (rails by default) in your main hand, put the crosshair on a point's vertical pin in the world, right-click.**
 
+Hold a **chain** instead (by default `minecraft:iron_chain` — that id is the chain since 1.21.9) and the same right-click opens no box: it flips **that point's lock**, see "Lock" below.
+
 A point counts as hit when the crosshair comes within 0.8 blocks of its pin and the pin is no more than 6 blocks along your line of sight; when several points are that close, the nearest along the sight line wins. A hit first draws a **white box** around that point, so you know which one you are about to edit; miss, and it is an ordinary right-click — blocks are placed, rails are laid. With anything else in your hand this never fires at all.
 
 ![Aiming at a point with rails: the white box wraps the flag on top of the pin](poi-world.png)
 
-Inside it is the same three rows, with buttons around them instead of key cycling:
+Inside it are six rows, with buttons around them instead of key cycling:
 
 | Row | How |
 |---|---|
-| `Y` | digits and Backspace; fully selected on open, so the first digit replaces the old value |
+| `X` `Z` | digits and Backspace; fully selected on open, so the first digit replaces the old value. These are **block coordinates**, up to ±30000000 |
+| `Y` | same, -1024 to 1024 |
 | `Name` | just type (CJK through your IME or `Ctrl+V`), up to 24 characters |
 | `Type` | click to cycle to the next one (six kinds, see [§6.4](#64-point-names-point-kinds-and-line-colours)) |
+| `Lock` | on / off — the same switch as right-clicking the point with a chain |
 
-![The box a right-click opens: Y / name / kind, same meaning as in the map](poi-editor.png)
+![The box a right-click opens: X / Z / Y / name / kind / lock](poi-editor.png)
 
-`Tab` moves between `Y` and `Name`; `Enter` or "Save" writes it; "Cancel" or `Esc` leaves the data alone. Saving goes down the **same path** as the map's box (`Planner.applyAnchorEdit` + `saveNow`): the file is written and the change synced immediately, so a change made in the world can never be missing from the map.
+`Tab` moves between rows; `Enter` or "Save" writes it; "Cancel" or `Esc` leaves the data alone. Saving goes down the **same path** as the map's box (`Planner.applyAnchorEdit` + `saveNow`): the file is written and the change synced immediately, so a change made in the world can never be missing from the map.
+
+**Typing X / Z leaves Y alone**: the point moves to a new column but keeps the elevation you typed — otherwise a point that was never resolved would have its height replaced by the ground height of the new column the moment you retyped its x.
 
 **Three things have to be true** (miss one and the right-click is just a right-click):
 
 | Requirement | Where |
 |---|---|
-| "Right-click edit（拿物品右键改点）" is on | left column of the settings page, config `poiEdit`, on by default |
+| "Right-click edit（拿物品右键改点）" is on (this only covers the edit box) | left column of the settings page, config `poiEdit`, on by default; the **chain half keeps working when it is off**, otherwise a locked point could never be unlocked again |
 | "Show points（显示已选的点）" is on | the points are not drawn at all, so there is nothing to hit |
 | "Disable all hotkeys（停用全部快捷键）" is off | that switch stops every mouse action of this mod at once |
 
-The trigger item is configurable too: type an item id into the "Item（触发物品）" field in the left column (`minecraft:rail`, `minecraft:stick`, ...); without a namespace `minecraft:` is prepended, and it is written to disk when you leave the settings page.
+Both items are configurable: type an item id into the "Item（触发物品）" and the "Chain item（锁链物品）" fields in the left column (`minecraft:rail`, `minecraft:iron_chain`, ...); without a namespace `minecraft:` is prepended, and it is written to disk when you leave the settings page. If both hold the same id, the chain wins — a typo can never leave a point locked with no way out.
 
 Some edges:
 
 - **Only points that are drawn can be clicked**: the map closed, the 3D line on, and points on the current route — the same condition §14 uses for drawing points
-- **It edits the point, it does not move it**: there is no x/z in the box, so a right-click cannot drag a point out of place
+- **A right-click never moves a point**: coordinates are only changed by typing them into the box, so the click itself cannot drag a point under your crosshair
 - The hit test is against the vertical **pin** (the same one §14 draws), so you aim at the pin, not at the block on the ground
 - If the route is replaced by a sync from another machine between opening the box and saving (the point's x/z moved), that save is dropped — better to lose this edit than to write it onto the wrong point
 
@@ -323,6 +333,7 @@ The screen is two columns plus a bottom bar: the left column is **3D line in the
 | Sync to server: on / off（同步到服务端：开 / 关） | Off means local only, **not a single sync request is sent**; with the server mod not installed this row is just a wish (see §15) |
 | Right-click edit: on / off（拿物品右键改点：开 / 关） | Hold the item below, aim at a point in the world and right-click to open the same edit box (see [§6.5](#65-editing-a-point-in-the-world)); on by default |
 | Item: `minecraft:rail`（触发物品） | The trigger item's id; without a namespace `minecraft:` is prepended. Written to disk when you leave this page |
+| Chain item: `minecraft:iron_chain`（锁链物品） | The id of the item that toggles a single point's lock; the chain's id has been `minecraft:iron_chain` since 1.21.9 |
 
 | Right column | What it does |
 |---|---|
@@ -406,6 +417,7 @@ There is exactly one request, `GET https://api.github.com/repos/phzt-hub/railpla
 | `anchorLock` | boolean | ✅ | Lock the placed points, same as pressing `L`; off by default |
 | `poiEdit` | boolean | ✅ | Master switch for editing a point with a right-click while holding the trigger item; on by default |
 | `poiEditItem` | string | ✅ | The trigger item's id; empty means `minecraft:rail`, and a missing namespace gets `minecraft:` prepended |
+| `poiLockItem` | string | ✅ | The lock item's id; empty means `minecraft:iron_chain`, and a missing namespace gets `minecraft:` prepended |
 | `hotkeysOff` | boolean | ✅ | Disable all of this mod's hotkeys and mouse actions (conflict avoidance); this is what that switch on the settings page writes |
 | `syncEnabled` | boolean | ✅ | Master switch for server sync; `false` = local only, not a single sync request is sent |
 | `noModNotified` | string array | ✅ | World identities already told "the server mod is not installed"; delete an entry and that server is told once more |
@@ -450,7 +462,7 @@ The same server on a different port counts as **the same** world (one shared cop
 | Field | Notes |
 |---|---|
 | `radius` | Circular-curve radius of this route; 0 or a missing key falls back to 24 |
-| `anchors` | Anchors as `[x, z, y, flags]`: `y` is that point's elevation; bit0 of the flags = set by hand, bit1 = a real ground height has been sampled (since 0.7.0), bit8 and up = the point's kind (since 0.8.0: 0 plain / 1 station / 2 curve control / 3 tunnel portal / 4 bridge / 5 signal). Old saves only have `[x, z]`; they load as "not resolved yet" and get their real height as soon as the map opens |
+| `anchors` | Anchors as `[x, z, y, flags]`: `y` is that point's elevation; bit0 of the flags = set by hand, bit1 = a real ground height has been sampled (since 0.7.0), bit2 = this point is locked (older versions ignore the bit and read the point as unlocked), bit8 and up = the point's kind (since 0.8.0: 0 plain / 1 station / 2 curve control / 3 tunnel portal / 4 bridge / 5 signal). Old saves only have `[x, z]`; they load as "not resolved yet" and get their real height as soon as the map opens |
 | `anchorNames` | Point names indexed like `anchors` (since 0.8.0); an empty string means unnamed. Older files have no such column |
 | `color` | Line colour (ARGB); new lines take one from the 7-colour palette in creation order, and double-clicking the panel's name row changes it |
 | `name` | Display name |
@@ -657,7 +669,7 @@ Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so t
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.3.jar`.
+Output: `build/libs/railplanner-0.9.0.jar`.
 
 ### Self-checks and debugging
 
@@ -755,6 +767,12 @@ Once a route is drawn, the last thing you want is a slip of the hand grabbing a 
 - editing a point with the trigger item ([§6.5](#65-editing-a-point-in-the-world)) is unaffected for the same reason
 - the world status bar gains "points locked（点已锁）", and the points themselves are drawn one shade darker
 - "Lock points（锁住已选的点）" in the right column of the settings page is the same switch
+
+**Locking just one point** instead of all of them is the per-point lock: **right-click that point with a chain**, or click "Lock" in the world's edit box. What changes:
+
+- only that point refuses to drag, every other point still drags; trying it says "this point is locked, right-click it with a chain to unlock（这一点锁着，拖不动）"
+- its pin and flag are still drawn, just one shade darker; on the map the point gets a small yellow block at its top-right, and the hover text gains "· locked（· 已锁）"
+- the flag is saved with the point and synced with the route, so a point locked on one machine is still locked on another (flags bit2)
 
 ### Cost
 
