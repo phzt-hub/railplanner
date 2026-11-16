@@ -265,7 +265,9 @@ public class RailConfigScreen extends Screen {
                 b -> this.minecraft.gui.setScreen(this.parent))
                 .bounds(leftX + 2 * (w3 + 4), bottom, w3, 20).build());
 
-        this.infoTop = bottom + ROW + 6;
+        // 右栏多了一行「诊断日志」，720×450 这种 GUI 尺寸下底下的状态行会被挤出屏幕，
+        // 所以信息块从紧贴底栏开始、行距收 1px，五行状态正好放得下。
+        this.infoTop = bottom + ROW + 2;
         LOG.info("设置页打开：{}x{}，左栏 {} 行，右栏 {} 行", this.width, this.height,
                 (left - top) / ROW, (right - top) / ROW);
     }
@@ -296,7 +298,7 @@ public class RailConfigScreen extends Screen {
                     UpdateChecker.currentVersion(), latestLabel()), leftX, y, text);
         }
 
-        y += 12;
+        y += 11;
         if (y < this.height - 20) {
             long last = UpdateChecker.lastCheckEpochMs();
             String when = last <= 0
@@ -305,17 +307,17 @@ public class RailConfigScreen extends Screen {
             g.text(this.font, Component.translatable("railplanner.config.last_check", when), leftX, y, text);
         }
 
-        y += 12;
+        y += 11;
         if (y < this.height - 20) {
             g.text(this.font, statusLine(), leftX, y, statusColor());
         }
 
-        y += 12;
+        y += 11;
         if (y < this.height - 20) {
             g.text(this.font, Component.literal(Loc.s("同步：", "Sync: ") + syncLine()), leftX, y, 0xFF9AA4AE);
         }
 
-        y += 12;
+        y += 11;
         if (y < this.height - 20) {
             g.text(this.font, Component.literal(Loc.s("更新：", "Updates: ") + Updater.statusText()), leftX, y,
                     Updater.state() == Updater.State.FAILED ? 0xFFFF6E6E : 0xFF9AA4AE);
