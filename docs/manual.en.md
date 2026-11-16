@@ -888,13 +888,18 @@ The `server-plugin/` in the repo is a plugin for **MCDReforged**: the client-sid
 
 ### What it does
 
-Every `check_interval_minutes` minutes it checks GitHub releases:
+Two modes, picked by `check_interval_minutes`:
+
+- **Manual (default, `0`)**: no polling. A deploy request file triggers one pull, the jar is swapped, a countdown is broadcast, and the server restarts — that is what `tools/deploy-live.sh` does after a release;
+- **Automatic (`>0`)**: it checks by itself every `check_interval_minutes` minutes.
+
+It checks the LAN site or GitHub releases:
 
 1. Find the newest release carrying `railplanner-<version>.jar` (drafts skipped, prereleases followed by default). **Only the mod jar counts**: from 0.8.3 on the source archive is attached as `sources-railplanner-<version>.zip`, so a release holds a single `.jar`; older releases still have a `-sources.jar`, which ends in `.jar` and matches its own sha256 and size just as well, but a server cannot start with it (the main class isn't inside) - so it still matches by exact name, skips `-sources/-dev/-javadoc/-slim/-api`, and skips the release when the mod jar is not there;
 2. Compare versions with the `railplanner-*.jar` in `server/mods/`; if it isn't newer, do nothing;
 3. If it is newer, download to `mods/.railplanner-download.tmp`, verify against the **sha256 + byte size** GitHub publishes, require it to open as a zip, and then **open it and check** that `fabric.mod.json` exists, the main class `com/phzt/railplanner/RailPlanner.class` is inside, and the mod id and version are right. Any failure deletes the temp file and exits untouched — not a byte in `mods/` changes;
 4. Move the old jar into `mods/.railplanner-backup/` (`keep_backup`) and put the new jar in place;
-5. With `auto_restart` on and the server running → say so in chat, and after `restart_delay_seconds` seconds restart the server with MCDR's own `restart`;
+5. With `auto_restart` on (or always for a manual deploy) and the server running → broadcast a countdown in chat (60/30/20/15/10/5/4/3/2/1 seconds, also written to the console log), then restart the server with MCDR's own `restart`;
 6. The swap only counts once the server prints `Done`. If it stops again before `Done` (the new jar won't start), the plugin puts the backup back and starts the server again inside that stop event — it has to happen synchronously, because MCDR's `EXIT_AFTER_STOP` makes MCDR itself exit right after the event is dispatched, so a timer would be too late.
 
 ### Install
@@ -916,7 +921,10 @@ Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first l
 {
   "enabled": true,
   "repo": "phzt-hub/railplanner",
-  "check_interval_minutes": 30,
+  "check_interval_minutes": 0,
+  "deploy_request_file": "railplanner_deploy.request",
+  "deploy_result_file": "railplanner_deploy.result",
+  "restart_countdown_seconds": 60,
   "include_prerelease": true,
   "auto_restart": true,
   "restart_delay_seconds": 15,
@@ -928,10 +936,13 @@ Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first l
 |---|---|
 | `enabled` | Master switch |
 | `repo` | Which repository to follow |
-| `check_interval_minutes` | How often to check, minimum 5 |
+| `check_interval_minutes` | How often to check, minimum 5; **`0` = no polling**, only a deploy request file pulls once (default) |
+| `deploy_request_file` | Deploy request file, relative to the MCDR root; its appearance triggers one deploy |
+| `deploy_result_file` | The deploy result is written here for external scripts to read |
+| `restart_countdown_seconds` | How many seconds the countdown runs before the restart (0 means 3) |
 | `include_prerelease` | Follow prereleases too (on by default) |
 | `auto_restart` | Restart automatically after the swap; off means it only swaps the jar, which takes effect at the next restart |
-| `restart_delay_seconds` | How many seconds of warning before the restart, minimum 3 |
+| `restart_delay_seconds` | Only used by `!!railupdate check` (that path has no countdown), minimum 3 |
 | `keep_backup` | Keeps a copy of the old jar in `mods/.railplanner-backup/`; rolling back is just swapping it back |
 
 ### Commands
@@ -940,10 +951,35 @@ Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first l
 |---|---|---|
 | `!!railupdate` / `!!railupdate status` | Everyone | Current jar, switches, interval, last result |
 | `!!railupdate check` | Admin | Check right now |
+| `!!railupdate deploy` | Admin | Deploy right now: pull, count down, restart |
 | `!!railupdate on` / `off` | Admin | Turn auto-update on / off (written back to the config) |
 | `!!railupdate reload` | Admin | Re-read the config |
 
-Note: when `!!railupdate check` finds a new version it **also restarts according to the config**; to swap without restarting, turn `auto_restart` off first and then check.
+Note: when `!!railupdate check` finds a new version it **also restarts according to the config**, but without a countdown (it only waits `restart_delay_seconds`); use `!!railupdate deploy` or `tools/deploy-live.sh` for a countdown.
+
+### Manual deploy (default)
+
+With `check_interval_minutes` at `0` nothing polls; the plugin watches `railplanner_deploy.request` in the MCDR root:
+
+```sh
+tools/deploy-live.sh                      # pull once, swap, broadcast 60 s, restart, wait for the server to come back
+tools/deploy-live.sh --channel release    # pick a channel (otherwise the configured one)
+tools/deploy-live.sh --countdown 10       # 10-second countdown
+tools/deploy-live.sh --no-wait            # only care about the pull, do not wait for the restart
+```
+
+All the script does is write one JSON line into that file (e.g. {"channel": "debug", "countdown": 60}); the plugin sees it within 2 seconds and deletes it before acting, so the same request is never executed twice. The outcome lands in railplanner_deploy.result:
+
+```json
+{"ok": true, "status": "updated", "message": "已更新到 0.9.1",
+ "jar": "railplanner-0.9.1-debug-202611161919.jar",
+ "previous": "railplanner-0.9.1-debug-202611161907.jar",
+ "countdown": 60, "restarting": true}
+```
+
+`status` is one of `updated` (swapped and restarted), `uptodate` (already current, nothing changed) or `failed` (`message` says why); the script exits 0 / 3 / 1 respectively.
+
+To go back to polling: set `check_interval_minutes` to 5 or more and run `!!railupdate reload`.
 
 > Protocol: since **0.8.0** the sync protocol is **3** (anchors carry Y and a point kind, plus the `anchorNames` list). A 0.7.x or older client connecting to a 0.8.x server shows "protocol mismatch（协议不兼容）" and uses local data only — upgrade both ends together.
 

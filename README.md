@@ -97,7 +97,7 @@
 - [采样点的 Y](docs/使用手册.md#63-采样点的-y默认取最高方块) —— 双击改标高、纵断面怎么被钉住、办不到的坡什么样
 - [点的名字、类型与线路颜色](docs/使用手册.md#64-点的名字类型与线路颜色) —— 六种点位图标、名字显示在哪、色板和 RGB 怎么用
 - [在世界里右键改点位](docs/使用手册.md#65-在世界里右键改点位) —— 拿什么物品、多近算点中、三个前提、命中按哪根针算、X / Z 手输、锁链切单点锁
-- [服务端自动更新](docs/使用手册.md#17-服务端自动更新mcdr-插件) —— MCDR 插件：换 jar、按开关重启
+- [服务端更新](docs/使用手册.md#17-服务端自动更新mcdr-插件) —— MCDR 插件：发版后 `tools/deploy-live.sh` 拉包、换 jar、广播倒计时、重启（也可开自动轮询）
 - [诊断日志](docs/使用手册.md#71-诊断日志线闪一下就没了的时候) —— 线闪一下又回来、`latest.log` 里却什么都没有时，用 `/railplanner diag on` 打开的那份记录
 - [已知限制](docs/使用手册.md#12-已知限制)
 
@@ -117,7 +117,7 @@
 
 自检：`./tools/geom-check.sh`（圆曲线参数与像素化连续性）、`./tools/vertical-check.sh`（点钉住、限坡、直线兜底）、`./tools/version-check.sh`（版本号比较），都不启游戏。
 
-服务端自动更新插件（MCDR）在 `server-plugin/`，装法见[使用手册 §17](docs/使用手册.md#17-服务端自动更新mcdr-插件)。
+服务端更新插件（MCDR）在 `server-plugin/`，装法见[使用手册 §17](docs/使用手册.md#17-服务端自动更新mcdr-插件)；发版后部署：`./tools/deploy-live.sh`（`--channel release` 走正式通道、`--countdown 10` 改倒计时）。
 开发调试：`./gradlew25 runClientTest` 直接进 `run/saves/railplanner_test`（1440×900），方便在无头 X 里截图。
 
 ## 已知限制（三条最要紧的）

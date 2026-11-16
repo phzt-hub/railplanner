@@ -13,7 +13,12 @@ channel=debug 时改查同一站点的 debug 通道：那边的 tag 恒为 v0.9.
 但换上去服务端起不来（主类不在里面）。所以挑附件按名字精确挑，下载后开包验一遍主类与版本号，
 换完第一次启动没走到 Done 就把备份滚回去。
 
-命令：!!railupdate status / check / source lan|github / channel release|debug / on / off / reload
+手动部署（1.1.4 起）：check_interval_minutes 设成 0 就不轮询了，改成盯 MCDR 根目录下的
+railplanner_deploy.request —— 文件一出现就拉一次（内容可带 channel / countdown），换完 jar
+先广播倒计时再重启，处理结果写进 railplanner_deploy.result 给外部脚本读。tools/deploy-live.sh
+就是往这个文件里丢一行 JSON，然后等结果。
+
+命令：!!railupdate status / check / deploy / source lan|github / channel release|debug / on / off / reload
 """
 
 import hashlib
@@ -56,7 +61,13 @@ class Config(Serializable):
     # 内网通道：release = 正式版；debug = 调试包（别拿它上生产）
     channel: str = 'release'
     repo: str = 'phzt-hub/railplanner'
-    check_interval_minutes: int = 30
+    # 0 = 不轮询，只在出现部署请求文件时拉一次（手动部署用这个）
+    check_interval_minutes: int = 0
+    # 部署请求文件 / 结果文件，相对 MCDR 根目录；也可以写绝对路径
+    deploy_request_file: str = 'railplanner_deploy.request'
+    deploy_result_file: str = 'railplanner_deploy.result'
+    # 换完 jar 后广播倒计时多少秒再重启（0 按 3 秒算）
+    restart_countdown_seconds: int = 60
     include_prerelease: bool = True
     auto_restart: bool = True
     restart_delay_seconds: int = 15
@@ -127,6 +138,14 @@ def version_key(v: str) -> Tuple:
     return (tuple(int(x) for x in nums[:6]) if nums else (0,), rank, stamp)
 
 
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(1 << 16), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def is_newer(candidate: str, current: Optional[str]) -> bool:
     if current is None:
         return True
@@ -142,8 +161,13 @@ def release_key(version: str, asset_name: str) -> Tuple:
     版本号自己带时间戳时（GitHub 源的可能情形）保留原值。
     """
     key = version_key(version)
-    m = BUILD_STAMP_RE.search(asset_name or '')
-    return key[:2] + ((int(m.group(1)) if m else 0) or key[2],)
+    name = (asset_name or '')
+    # 内网 debug 通道的 tag 是 v0.9.1 这种不带后缀的字符串，但包是 -debug-<时间戳>.jar：
+    # rank 必须跟包名走（0），否则 tag 的「正式版」标记会压过装着的 debug 包，
+    # 同一个包每查一次都被判成「更新」，白下一次、还白重启一次。
+    rank = 0 if '-debug' in name.lower() else key[1]
+    m = BUILD_STAMP_RE.search(name)
+    return (key[0], rank, (int(m.group(1)) if m else 0) or key[2])
 
 
 # ---------------------------------------------------------------- 查 GitHub
@@ -277,7 +301,8 @@ def validate_jar(path: Path) -> str:
 
 # ---------------------------------------------------------------- 更新一步
 
-def check_and_update(server: PluginServerInterface, manual: bool = False) -> str:
+def check_and_update(server: PluginServerInterface, manual: bool = False,
+                     countdown: Optional[int] = None, force_restart: bool = False) -> str:
     global _last_result
     cfg = config
     if cfg is None:
@@ -329,6 +354,22 @@ def check_and_update(server: PluginServerInterface, manual: bool = False) -> str
     server.logger.info('[RailPlanner] 下载完成：{} 字节，sha256 {}，包内版本 {}'.format(
         asset.get('size'), sha[:12], validate_jar(tmp)))
 
+    # 逐字节相同就当没更新：站点重发同一个包、或 tag 与包名不同步时，
+    # 版本号那套比较可能判成「更新」，但换一个一模一样的 jar 再重启一次纯属折腾。
+    if current_path is not None and current_path.is_file():
+        try:
+            same = file_sha256(current_path) == sha
+        except OSError:
+            same = False
+        if same:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            _last_result = '已是最新：{}（内容一致）'.format(current)
+            server.logger.info('[RailPlanner] 下载的包和 mods/ 里那份逐字节相同，不换、不重启')
+            return _last_result
+
     backup_path: Optional[Path] = None
     if cfg.keep_backup and current_path is not None:
         backup = mods / '.railplanner-backup'
@@ -361,14 +402,33 @@ def check_and_update(server: PluginServerInterface, manual: bool = False) -> str
 
     _arm_rollback(mods, final, backup_path)
 
-    if cfg.auto_restart and server.is_server_running():
-        delay = max(3, int(cfg.restart_delay_seconds))
-        server.say('§e[Rail Planner] 服务端模组更新到 {}，{} 秒后重启'.format(latest, delay))
-        # MCDR 的 schedule_task 不接受 delay，这里用一个后台计时器
-        timer = threading.Timer(delay, lambda: _restart(server))
-        timer.daemon = True
-        timer.start()
+    if (cfg.auto_restart or force_restart) and server.is_server_running():
+        delay = max(3, int(countdown if countdown is not None else cfg.restart_delay_seconds))
+        _schedule_restart(server, delay, latest)
     return _last_result
+
+
+# 倒计时广播的整点：起点单独念，之后在这些秒数再念一次
+_COUNTDOWN_MARKS = (60, 30, 20, 15, 10, 5, 4, 3, 2, 1)
+
+
+def _schedule_restart(server: PluginServerInterface, delay: int, version: str) -> None:
+    """先广播倒计时，到点再重启。自动更新和手动部署走同一条路。"""
+    def run():
+        # broadcast 比 say 多一步「同时打到控制台」，MCDR.log 里能查到每一次广播
+        server.broadcast('§e[Rail Planner] 服务端模组更新到 {}，{} 秒后重启'.format(version, delay))
+        marks = sorted((m for m in _COUNTDOWN_MARKS if m < delay), reverse=True)
+        left = delay
+        for mark in marks:
+            if _stop.wait(max(0, left - mark)):
+                return
+            left = mark
+            server.broadcast('§e[Rail Planner] 还有 {} 秒重启'.format(mark))
+        if _stop.wait(max(0, left)):
+            return
+        _restart(server)
+
+    threading.Thread(target=run, name='railplanner-countdown', daemon=True).start()
 
 
 def _restart(server: PluginServerInterface):
@@ -442,20 +502,127 @@ def on_server_stop(server: PluginServerInterface, return_code: int):
         server.logger.error('[RailPlanner] 回滚后拉起服务端失败：{}'.format(e))
 
 
+# ---------------------------------------------------------------- 手动部署
+
+def _deploy_path(name: str, default: str) -> Path:
+    p = Path(name or default)
+    return p if p.is_absolute() else Path.cwd() / p
+
+
+def request_file() -> Path:
+    return _deploy_path(getattr(config, 'deploy_request_file', '') if config else '',
+                        'railplanner_deploy.request')
+
+
+def result_file() -> Path:
+    return _deploy_path(getattr(config, 'deploy_result_file', '') if config else '',
+                        'railplanner_deploy.result')
+
+
+def _take_request(server: PluginServerInterface) -> Optional[dict]:
+    """有请求文件就先删再处理：同一份不会被连着执行两次。"""
+    path = request_file()
+    if not path.is_file():
+        return None
+    raw = ''
+    try:
+        raw = path.read_text(encoding='utf-8').strip()
+    except OSError:
+        pass
+    try:
+        path.unlink()
+    except OSError as e:
+        server.logger.warning('[RailPlanner] 删不掉部署请求文件：{}'.format(e))
+    req = {}
+    if raw:
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            parsed = {'note': raw}
+        req = parsed if isinstance(parsed, dict) else {'note': raw}
+    return req
+
+
+def _write_result(status: str, message: str, **extra) -> None:
+    payload = {
+        'ok': status != 'failed',
+        'status': status,
+        'message': message,
+        'at': int(time.time()),
+        'atText': time.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    payload.update(extra)
+    path = result_file()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+    except OSError as e:
+        if _plugin_server is not None:
+            _plugin_server.logger.warning('[RailPlanner] 写部署结果失败：{}'.format(e))
+
+
+def deploy(server: PluginServerInterface, req: dict) -> str:
+    """手动部署一遍：拉包 → 换 jar → 倒计时 → 重启，成败都落到结果文件里。"""
+    channel = str(req.get('channel') or '').strip().lower()
+    if channel:
+        if channel in CHANNELS:
+            config.channel = channel
+            server.logger.info('[RailPlanner] 本次部署用 {} 通道'.format(channel))
+        else:
+            server.logger.warning('[RailPlanner] 请求里的通道 {} 不认识，按 {} 处理'.format(channel, config.channel))
+    try:
+        countdown = int(req.get('countdown'))
+    except (TypeError, ValueError):
+        countdown = int(getattr(config, 'restart_countdown_seconds', 60) or 60)
+
+    mods = mods_dir(server)
+    before = installed_jar(mods)
+    try:
+        message = check_and_update(server, manual=True, countdown=countdown, force_restart=True)
+    except Exception as e:
+        server.logger.error('[RailPlanner] 部署失败：{}'.format(e))
+        _write_result('failed', '部署失败：{}'.format(e), channel=config.channel, countdown=countdown)
+        return '部署失败：{}'.format(e)
+
+    after = installed_jar(mods)
+    updated = after is not None and (before is None or after.name != before.name)
+    status = 'updated' if updated else 'uptodate'
+    _write_result(
+        status, message,
+        channel=config.channel,
+        jar=after.name if after else None,
+        previous=before.name if before else None,
+        countdown=countdown,
+        restarting=bool(updated and server.is_server_running()),
+    )
+    return message
+
+
 # ---------------------------------------------------------------- 定时
 
 def _loop(server: PluginServerInterface):
-    # 刚起来先等一会儿，别和开服抢资源
-    if _stop.wait(60):
+    # 自动模式刚起来先等一会儿，别和开服抢资源；手动模式就是等别人喊一声，
+    # 再等 60 秒去处理请求只会让部署脚本干等
+    interval = int(config.check_interval_minutes) if config else 0
+    if _stop.wait(60 if interval > 0 else 2):
         return
     while not _stop.is_set():
+        interval = 0
         try:
-            result = check_and_update(server)
-            server.logger.info('[RailPlanner] 检查结果：{}'.format(result))
+            req = _take_request(server)
+            if req is not None:
+                server.logger.info('[RailPlanner] 收到部署请求：{}'.format(req or '（空）'))
+                deploy(server, req)
+                if _stop.wait(1):
+                    return
+                continue
+            interval = int(config.check_interval_minutes) if config else 0
+            if interval > 0:
+                result = check_and_update(server)
+                server.logger.info('[RailPlanner] 检查结果：{}'.format(result))
         except Exception as e:
             server.logger.warning('[RailPlanner] 检查更新失败：{}'.format(e))
-        interval = max(5, int(config.check_interval_minutes)) * 60 if config else 1800
-        if _stop.wait(interval):
+        if _stop.wait(max(5, interval) * 60 if interval > 0 else 2):
             return
 
 
@@ -470,11 +637,14 @@ def _status_text(server: PluginServerInterface) -> str:
         '  更新源　：{}'.format(source_label(config)),
         '  自动更新：{}'.format('开' if config.enabled else '关'),
         '  预发布　：{}'.format('跟' if config.include_prerelease else '不跟'),
-        '  间隔　　：{} 分钟　换完：{}'.format(
-            config.check_interval_minutes,
-            '{} 秒后自动重启'.format(config.restart_delay_seconds) if config.auto_restart else '只换 jar，不重启'),
+        '  轮询　　：{}'.format(
+            '每 {} 分钟'.format(config.check_interval_minutes)
+            if (config.check_interval_minutes or 0) > 0 else '关（等部署请求文件）'),
+        '  请求文件：§7{}'.format(request_file()),
+        '  换完　　：{}'.format(
+            '广播倒计时 {} 秒后重启'.format(config.restart_countdown_seconds) if config.auto_restart else '只换 jar，不重启'),
         '  上次结果：{}'.format(_last_result),
-        '  §7换源：!!railupdate source lan|github　通道：!!railupdate channel release|debug',
+        '  §7换源：!!railupdate source lan|github　通道：!!railupdate channel release|debug　部署：!!railupdate deploy',
     ]
     return '\n'.join(lines)
 
@@ -498,6 +668,7 @@ def on_load(server: PluginServerInterface, old):
         runs(lambda src: src.reply(_status_text(server))).
         then(Literal('status').runs(lambda src: src.reply(_status_text(server)))).
         then(Literal('check').requires(lambda src: src.has_permission(PermissionLevel.ADMIN)).runs(lambda src: _manual_check(src, server))).
+        then(Literal('deploy').requires(lambda src: src.has_permission(PermissionLevel.ADMIN)).runs(lambda src: _manual_deploy(src, server))).
         then(Literal('source').
              runs(lambda src: src.reply('§b[RailPlanner] 当前更新源：{}\n§7可用：!!railupdate source lan | github'.format(source_label(config)))).
              then(Literal('lan').requires(lambda src: src.has_permission(PermissionLevel.ADMIN)).runs(lambda src: _set_source(src, server, 'lan'))).
@@ -523,9 +694,14 @@ def on_load(server: PluginServerInterface, old):
     _stop.clear()
     _thread = threading.Thread(target=_loop, args=(server,), name='railplanner-updater', daemon=True)
     _thread.start()
-    server.logger.info('[RailPlanner] 自动更新已加载：源 {}，每 {} 分钟查一次，换完{}'.format(
-        source_label(config), config.check_interval_minutes,
-        '自动重启' if config.auto_restart else '不自动重启'))
+    if (config.check_interval_minutes or 0) > 0:
+        server.logger.info('[RailPlanner] 自动更新已加载：源 {}，每 {} 分钟查一次，换完{}'.format(
+            source_label(config), config.check_interval_minutes,
+            '自动重启' if config.auto_restart else '不自动重启'))
+    else:
+        server.logger.info('[RailPlanner] 手动模式已加载：源 {}，不轮询，{} 出现才拉一次，换完广播 {} 秒再重启'.format(
+            source_label(config), request_file().name,
+            config.restart_countdown_seconds if config.auto_restart else 0))
 
 
 def on_unload(server: PluginServerInterface):
@@ -538,6 +714,14 @@ def _manual_check(source, server):
         source.reply('§a[RailPlanner] ' + check_and_update(server, manual=True))
     except Exception as e:
         source.reply('§c[RailPlanner] 检查失败：{}'.format(e))
+
+
+def _manual_deploy(source, server):
+    source.reply('§e[RailPlanner] 开始部署…（换完广播倒计时再重启）')
+    try:
+        source.reply('§a[RailPlanner] ' + deploy(server, {}))
+    except Exception as e:
+        source.reply('§c[RailPlanner] 部署失败：{}'.format(e))
 
 
 def _toggle(source, server, value: bool):
