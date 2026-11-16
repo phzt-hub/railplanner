@@ -1,5 +1,6 @@
 package com.phzt.railplanner.client.mixin;
 
+import com.phzt.railplanner.client.world.ClearanceGizmos;
 import com.phzt.railplanner.client.world.RouteGizmos;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.debug.DebugRenderer;
@@ -22,5 +23,7 @@ public abstract class DebugRendererMixin {
     private void railplanner$emitGizmos(Frustum frustum, double camX, double camY, double camZ,
                                         float partialTick, CallbackInfo ci) {
         RouteGizmos.emit(camX, camY, camZ);
+        // 限界红框跟 3D 线共用同一个收集时机，但开关是各自的：关掉 3D 线照样能看限界。
+        ClearanceGizmos.emit(camX, camY, camZ);
     }
 }

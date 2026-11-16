@@ -12,6 +12,7 @@
   "key.railplanner.world_toggle": "世界里的 3D 线",
   "key.railplanner.world_xray": "3D 线穿山可见",
   "key.railplanner.lock": "锁住已选的点",
+  "key.railplanner.clearance": "铁路限界窗口",
 
   "railplanner.config.title": "铁路选线设置",
   "railplanner.config.col_world": "世界里的 3D 线",

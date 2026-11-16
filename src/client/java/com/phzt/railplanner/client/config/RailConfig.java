@@ -70,6 +70,19 @@ public final class RailConfig {
     public String poiLockItem = "minecraft:iron_chain";
 
     /**
+     * 铁路限界标红：在三维世界里把限界内挡路的方块画成红框（默认关）。
+     *
+     * <p>下面是它的四个数：宽度按奇数（3/5/7…，以中心线左右对称），{@code clearanceUp}
+     * 是轨面以上要留的净空，{@code clearanceDown} 是轨面以下要挖的深度，
+     * {@code clearanceRange} 是「只算玩家周围这么多格」。见 {@code clearance.Corridor}。</p>
+     */
+    public boolean clearanceOn;
+    public int clearanceWidth = 5;
+    public int clearanceUp = 6;
+    public int clearanceDown;
+    public int clearanceRange = 64;
+
+    /**
      * 停用本模组的全部快捷键与鼠标操作（防和其他模组抢键）。
      * 只剩「打开设置页」那个键还能用——否则关掉之后就再也开不回来了。
      */
@@ -150,6 +163,10 @@ public final class RailConfig {
         if (!"verbose".equalsIgnoreCase(diagLevel)) {
             diagLevel = "basic";
         }
+        clearanceWidth = com.phzt.railplanner.clearance.Corridor.fixWidth(clearanceWidth);
+        clearanceUp = Math.max(0, Math.min(com.phzt.railplanner.clearance.Corridor.MAX_UP, clearanceUp));
+        clearanceDown = Math.max(0, Math.min(com.phzt.railplanner.clearance.Corridor.MAX_DOWN, clearanceDown));
+        clearanceRange = Math.max(16, Math.min(256, clearanceRange));
         return this;
     }
 

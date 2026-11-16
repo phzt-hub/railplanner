@@ -2,6 +2,7 @@ package com.phzt.railplanner.client.config;
 
 import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.diag.Diag;
+import com.phzt.railplanner.client.gui.ClearanceScreen;
 import com.mojang.blaze3d.Blaze3D;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.planner.Planner;
@@ -46,6 +47,8 @@ public class RailConfigScreen extends Screen {
     private Button installButton;
     private Button restartButton;
     private Button diagButton;
+    /** 铁路限界的入口按钮（标签上带着当前尺寸和开关状态）。 */
+    private Button clearButton;
     /** 触发物品那一行，输入框右边留出来画标题用。 */
     private EditBox poiItemField;
     private int poiRow;
@@ -245,6 +248,13 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 铁路限界：这一页只放一个入口（按钮上带着当前尺寸），四个数在窗口里——
+        // 720×450 这种 GUI 尺寸下两栏已经排到顶了，再塞四行按钮会把底下的状态行挤出屏幕。
+        this.clearButton = this.addRenderableWidget(Button.builder(labelClearance(),
+                b -> this.minecraft.gui.setScreen(new ClearanceScreen(this)))
+                .bounds(rightX, right, colW, 20).build());
+        right += ROW;
+
         // 底下一行：按键绑定 | 打开下载页 | 完成（两栏高度可能差一行，取低的那条）
         int bottom = Math.max(left, right);
         int totalW = colW * 2 + 8;
@@ -283,6 +293,9 @@ public class RailConfigScreen extends Screen {
         }
         if (diagButton != null) {
             diagButton.setMessage(labelDiag());
+        }
+        if (clearButton != null) {
+            clearButton.setMessage(labelClearance());
         }
 
         g.centeredText(this.font, this.getTitle(), this.width / 2, 24, 0xFFFFFFFF);
@@ -385,6 +398,13 @@ public class RailConfigScreen extends Screen {
 
     private static Component labelRange() {
         return Component.translatable("railplanner.config.world_range", Math.round(RailConfig.get().worldRange));
+    }
+
+    private static Component labelClearance() {
+        RailConfig cfg = RailConfig.get();
+        String head = Loc.s("铁路限界 ", "Rail clearance ") + cfg.clearanceWidth + "×" + cfg.clearanceUp + "+"
+                + cfg.clearanceDown;
+        return Component.literal(head + (cfg.clearanceOn ? Loc.s("：开", ": on") : Loc.s("：关", ": off")));
     }
 
     private static Component labelDiag() {

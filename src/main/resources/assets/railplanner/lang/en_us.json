@@ -12,6 +12,7 @@
   "key.railplanner.world_toggle": "3D route in world",
   "key.railplanner.world_xray": "3D route always on top",
   "key.railplanner.lock": "Lock placed points",
+  "key.railplanner.clearance": "Rail clearance window",
 
   "railplanner.config.title": "Rail Planner Settings",
   "railplanner.config.col_world": "3D route in world",

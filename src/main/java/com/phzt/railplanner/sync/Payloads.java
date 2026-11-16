@@ -19,10 +19,16 @@ public final class Payloads {
     public static final int C2S_HELLO = 1;
     public static final int C2S_PULL = 2;
     public static final int C2S_PUSH = 3;
+    /** 问一句「这儿能不能清」：服务端回装了没装 WorldEdit、玩家是不是 OP、是不是创造。 */
+    public static final int C2S_CLEARINFO = 4;
+    /** 一键清理：正文是走行线 + 限界尺寸，方块由服务端自己算。 */
+    public static final int C2S_CLEAR = 5;
 
     public static final int S2C_HELLO = 1;
     public static final int S2C_STATE = 2;
     public static final int S2C_ACK = 3;
+    public static final int S2C_CLEARINFO = 4;
+    public static final int S2C_CLEAR = 5;
 
     private Payloads() {
     }

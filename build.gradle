@@ -53,6 +53,10 @@ dependencies {
 
 	// Mod Menu 是可选依赖：装了就在模组列表里出现齿轮，没装也不影响任何功能。
 	compileOnly files("libs/modmenu-21.0.1.jar")
+
+	// WorldEdit 同理：只有服务端「一键清理」那条路要用，没装就整条路不通（客户端只标红）。
+	// 编译期要它的类，运行时用 FabricLoader.isModLoaded("worldedit") 挡住。
+	compileOnly files("libs/worldedit-mod-7.4.6.jar")
 }
 
 processResources {

@@ -189,6 +189,11 @@ public final class SyncClient {
                     case Payloads.S2C_HELLO -> onHello(mc, payload.body());
                     case Payloads.S2C_STATE -> onState(mc, payload.body());
                     case Payloads.S2C_ACK -> onAck(payload.body());
+                    // 限界那条路复用同一个通道，但走自己的处理器（跟同步状态机无关）。
+                    case Payloads.S2C_CLEARINFO -> ClearanceNet.handleInfo(
+                            Dto.GSON.fromJson(payload.body(), Dto.ClearInfo.class));
+                    case Payloads.S2C_CLEAR -> ClearanceNet.handleAck(
+                            Dto.GSON.fromJson(payload.body(), Dto.ClearAck.class));
                     default -> LOG.warn("未知同步回包 {}", payload.op());
                 }
             } catch (Throwable t) {

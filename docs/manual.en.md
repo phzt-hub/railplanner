@@ -946,3 +946,49 @@ Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first l
 Note: when `!!railupdate check` finds a new version it **also restarts according to the config**; to swap without restarting, turn `auto_restart` off first and then check.
 
 > Protocol: since **0.8.0** the sync protocol is **3** (anchors carry Y and a point kind, plus the `anchorNames` list). A 0.7.x or older client connecting to a 0.8.x server shows "protocol mismatch（协议不兼容）" and uses local data only — upgrade both ends together.
+
+## 18. Rail clearance and one-click clearing
+
+### The four numbers
+
+`K` opens the "Rail clearance" window (the "Rail clearance 5×6+0" row on the settings page is the same entry):
+
+| Number | Meaning | Range |
+|---|---|---|
+| Width | Blocks, symmetric about the centre line, **odd only** (4 becomes 5) | 3–15 |
+| Up | Headroom above the rail (design elevation) | 0–32 |
+| Down | Depth to dig below the rail | 0–16 |
+| Range | Only the path within this many blocks of the player | 16–256 |
+
+The corridor is taken along the **currently selected line**, cell by cell: one cross-section perpendicular to travel at every cell, N blocks wide, from "rail + up" down to "rail − down". Diagonal steps are split into two axis steps first — without that, a 45° cross-section is itself a diagonal line and consecutive ones leave an equally diagonal gap between them, so the preview comes out as parallel stripes.
+
+### What gets highlighted
+
+The rule is "solid blocks that are in the way", and `clearance/ClearRules.java` reads in one sitting:
+
+- `isAir()`, `liquid()` or `!isSolidRender()` → skipped (grass, flowers, vines, torches, rails, signs are all in this bucket);
+- `hasBlockEntity()` → skipped (chests, furnaces, spawners: there may be something inside, and a wrong clear costs too much);
+- an id containing `rail`, or `gravel` (ballast) / `redstone_block` → skipped (things you built yourself).
+
+The world only draws the **600 nearest** boxes within 128 blocks of the camera (drawing all of them costs frames and the far ones are unreadable anyway); the window reports the full count.
+
+### The four preconditions for one-click clearing
+
+| Precondition | What the window says when it fails |
+|---|---|
+| You are in creative | You are not in creative mode |
+| The server runs this mod | Server has no Rail Planner |
+| The server runs WorldEdit | Server has no WorldEdit |
+| You are op (level 2) | You are not op (level 2) |
+
+All four are checked **server-side**; the client only uses them to grey the button out. Single-player takes the same path: the integrated server is local, so WorldEdit is all it needs.
+
+### What clearing actually does
+
+1. The client sends the **path** (x/y/z per cell) and the three sizes;
+2. the server **recomputes** every block with the same `Corridor` and filters by block state again;
+3. more than 20000 hits → refused outright (shrink the range), never half-applied;
+4. the edit goes through a WorldEdit `EditSession`, one clear = one `//undo` step (measured: `//undo` reports "Undid 1 available edits.");
+5. the reply says how many blocks went; one line in chat, one in the window.
+
+> Rescan triggers: the sizes or range changed, the current line changed, you moved more than 8 blocks, or a 2-second safety tick. Right after terrain loads, the boxes may take half a second to appear.

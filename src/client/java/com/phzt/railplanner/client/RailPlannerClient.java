@@ -5,10 +5,13 @@ import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.diag.Diag;
 import com.phzt.railplanner.client.diag.DiagCommands;
 import com.phzt.railplanner.client.config.RailConfigScreen;
+import com.phzt.railplanner.client.gui.ClearanceScreen;
 import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.render.WorldHud;
+import com.phzt.railplanner.client.sync.ClearanceNet;
 import com.phzt.railplanner.client.sync.SyncClient;
 import com.phzt.railplanner.client.update.UpdateChecker;
+import com.phzt.railplanner.client.world.Clearance;
 import com.phzt.railplanner.client.world.PointPick;
 import com.phzt.railplanner.sync.Payloads;
 import net.fabricmc.api.ClientModInitializer;
@@ -70,10 +73,14 @@ public final class RailPlannerClient implements ClientModInitializer {
     public static final KeyMapping LOCK =
             new KeyMapping("key.railplanner.lock", InputConstants.Type.KEYBOARD,
                     InputConstants.KEY_L, CATEGORY);
+    /** K：铁路限界窗口（宽度/高度/标红开关/一键清理）。 */
+    public static final KeyMapping CLEARANCE =
+            new KeyMapping("key.railplanner.clearance", InputConstants.Type.KEYBOARD,
+                    InputConstants.KEY_K, CATEGORY);
 
     private static final KeyMapping[] ALL = {
             TOGGLE, FINISH, UNDO, RADIUS, AUTOROUTE, GRADE_DOWN, GRADE_UP, HUD_COLLAPSE, SETTINGS,
-            WORLD_TOGGLE, WORLD_XRAY, LOCK
+            WORLD_TOGGLE, WORLD_XRAY, LOCK, CLEARANCE
     };
 
     @Override
@@ -94,8 +101,15 @@ public final class RailPlannerClient implements ClientModInitializer {
         UseItemCallback.EVENT.register((player, level, hand) -> PointPick.onUse(level, player, hand));
         // 同步：服务端回包的接收器 + 进退服两个钩子
         ClientPlayNetworking.registerGlobalReceiver(Payloads.S2C.TYPE, SyncClient::handle);
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> SyncClient.onJoin(client));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> SyncClient.onDisconnect());
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            SyncClient.onJoin(client);
+            // 清理那条路跟同步独立：同步关着也能清，所以能力握手单独问一次。
+            ClearanceNet.onJoin(client);
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            SyncClient.onDisconnect();
+            ClearanceNet.onDisconnect();
+        });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("railplanner", "status"),
                 (graphics, deltaTracker) -> WorldHud.render(graphics));
 
@@ -106,6 +120,7 @@ public final class RailPlannerClient implements ClientModInitializer {
             int worldToggles = drain(WORLD_TOGGLE);
             int worldXrays = drain(WORLD_XRAY);
             int lockToggles = drain(LOCK);
+            int clearanceKeys = drain(CLEARANCE);
             // 停用期间除了设置页那个键，别的都不响应；计数照样清掉，免得恢复时一次性全冒出来。
             boolean hotkeysOff = RailConfig.get().hotkeysOff;
             if (client.gui.screen() == null && settings > 0) {
@@ -113,6 +128,10 @@ public final class RailPlannerClient implements ClientModInitializer {
                 LOG.info("打开设置页（按键 {}）", keyName(SETTINGS));
                 client.gui.setScreen(new RailConfigScreen(null));
             } else if (!hotkeysOff && client.gui.screen() == null) {
+                if (clearanceKeys > 0) {
+                    LOG.info("打开铁路限界窗口（按键 {}）", keyName(CLEARANCE));
+                    client.gui.setScreen(new ClearanceScreen(null));
+                }
                 if (lockToggles > 0) {
                     Planner.toggleLock();
                 }
@@ -140,6 +159,7 @@ public final class RailPlannerClient implements ClientModInitializer {
                 }
             }
             Planner.tick(client);
+            Clearance.tick(client);
             SyncClient.tick(client);
             UpdateChecker.tick(client);
             Diag.tick(client);

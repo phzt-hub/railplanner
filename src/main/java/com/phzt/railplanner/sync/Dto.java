@@ -124,6 +124,45 @@ public final class Dto {
         public boolean ok = true;
     }
 
+    /**
+     * 一键清理的请求：只给走行线（每格的 x/y/z）和三个尺寸。
+     *
+     * <p>方块坐标不由客户端提——服务端用同一个 {@code Corridor} 自己扫，
+     * 客户端就算改了本地坐标也只会清到自己算出来的那些格子。</p>
+     */
+    public static final class Clear {
+        /** 宽度，奇数格。 */
+        public int width = 5;
+        /** 轨面以上留几格。 */
+        public int up = 6;
+        /** 轨面以下挖几格。 */
+        public int down;
+        public int[] xs = new int[0];
+        /** 轨面（设计标高）的 y。 */
+        public int[] ys = new int[0];
+        public int[] zs = new int[0];
+    }
+
+    /** 服务端这边的能力：装了没装 WorldEdit、玩家是不是 OP、一次最多清多少格。 */
+    public static final class ClearInfo {
+        public boolean worldedit;
+        public boolean op;
+        public boolean creative;
+        public int maxBlocks;
+        public String server = "";
+    }
+
+    /** 清理的结果。失败时 {@code reason} 是给玩家看的代号，文案表在 ClearanceNet 里。 */
+    public static final class ClearAck {
+        public boolean ok = true;
+        /** 真正清掉的格数。 */
+        public int cleared;
+        /** 清之前命中的格数（限界里挡路的方块）。 */
+        public int found;
+        /** not_creative / not_op / no_worldedit / too_many / bad_request / worldedit_failed。 */
+        public String reason = "";
+    }
+
     /** 双精度在 json 里可能出现 24.0 / 2.4E1 两种写法，指纹前先归一。 */
     static double clean(double v) {
         return Math.round(v * 1_000_000.0) / 1_000_000.0;

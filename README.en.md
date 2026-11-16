@@ -52,11 +52,12 @@ Enter a world and press `B` to open the map in planning mode; a few left clicks 
 | `J` | Auto-route from the last point to the cursor |
 | `H` | Collapse the panel into one line / expand it (the state is remembered) |
 | `U` | Settings page (update check, key bind entry) |
+| `K` | Rail clearance window (width / height / depth / highlight switch / one-click clear) |
 | `V` | 3D line in the world on / off |
 | `X` | 3D line visible through terrain (drawn on top of everything) |
 | `L` | Lock the placed points against accidental dragging |
 
-All twelve keys can be rebound in **Options → Controls → Key Binds → Rail Planner（铁路选线）**, and the hints follow the new key.
+All thirteen keys can be rebound in **Options → Controls → Key Binds → Rail Planner（铁路选线）**, and the hints follow the new key.
 
 The settings page also has a **"Disable all hotkeys（停用全部快捷键）"** switch: turn it on and this mod's keys and mouse actions stop together (so nothing fights another mod over a key) — only the "Open settings page（打开设置页）" key stays alive, otherwise you could never switch it back. The state is written to the config and survives a restart.
 
@@ -67,6 +68,24 @@ Close the map and the line stands in the world (`V` turns it off, `X` sees it th
 Collapsed, the panel looks like this; a grade over the limit and too high a tunnel/bridge share turn red:
 
 ![Collapsed](docs/collapsed.png)
+
+## Clearance (width × height)
+
+Once a line is drawn, press `K` for the "Rail clearance" window: width (odd, 3–15 blocks, symmetric about the centre line), headroom above the rail, depth to dig below it. The world then draws a red box on **every block inside the clearance that is in the way**, and the window reports how many blocks that is within range.
+
+| Rule | Detail |
+|---|---|
+| Only what actually blocks | Air, water and lava are skipped; so are grass, flowers, vines, torches, rails and signs — they do not fill a block (`isSolidRender()` is false) |
+| Block entities untouched | Chests, furnaces, spawners, signs: there may be something inside, and a wrong clear is expensive |
+| What you built yourself | Ballast (gravel), redstone blocks, and anything whose id contains `rail` |
+| The corridor is watertight | A cross-section perpendicular to travel is taken at every path cell; diagonal steps are split into two axis steps first (without that split, 45° cross-sections leave a same-width diagonal gap between them and the preview comes out striped) |
+| Range | Only the path within this many blocks of the player (64 by default, 16–256), so long lines stay cheap |
+
+**One-click clear** needs four things at once, and the window's red line tells you which one is missing: **you are in creative**, the **server runs this mod**, the **server runs WorldEdit**, and **you are op** (level 2, the same threshold WorldEdit uses by default).
+
+The clear goes through a WorldEdit `EditSession` and lands in *your* `//undo` history (one clear = one step); the per-call cap is **20000 blocks** — over that the request is refused rather than half-applied. The client sends the path; the **server recomputes every block coordinate with the same geometry**, and never trusts a coordinate list from the client.
+
+Without WorldEdit on the server the highlight still works — only the clear is unavailable.
 
 ## Docs
 

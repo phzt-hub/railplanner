@@ -22,6 +22,9 @@ public final class ServerSync {
                 case Payloads.C2S_HELLO -> hello(context, player);
                 case Payloads.C2S_PULL -> pull(context, player, payload.body());
                 case Payloads.C2S_PUSH -> push(context, player, payload.body());
+                case Payloads.C2S_CLEARINFO, Payloads.C2S_CLEAR ->
+                        com.phzt.railplanner.clearance.ClearanceServer.handle(context, player, payload.op(),
+                                payload.body());
                 default -> RailPlanner.LOG.warn("收到未知同步操作 {}（来自 {}）", payload.op(), player.getName().getString());
             }
         } catch (Throwable t) {
@@ -67,7 +70,8 @@ public final class ServerSync {
         reply(player, Payloads.S2C_ACK, ack);
     }
 
-    private static void reply(ServerPlayer player, int op, Object body) {
+    /** 回一个包。限界那条路也用这个，所以是 public。 */
+    public static void reply(ServerPlayer player, int op, Object body) {
         if (!ServerPlayNetworking.canSend(player, Payloads.S2C.TYPE)) {
             return;
         }
