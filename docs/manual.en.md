@@ -40,7 +40,7 @@ Technically it reads **the height data Xaero's World Map has already stored**: i
 
 1. Minecraft **26.3** + **Fabric Loader 0.19.5** (Java 25 runtime)
 2. The client must have **Fabric API** and **Xaero's World Map ≥ 1.47**
-3. Drop `railplanner-0.8.0.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
+3. Drop `railplanner-0.8.1.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
 4. **The server side is optional**: drop the same jar into the server's `mods/`, no config changes. With it installed, data is stored per UUID on the server and comes back automatically when you change machines; without it, it is purely local, exactly like 0.5.0. The server **does not need Xaero** and needs no client mods either
 
 ### Use
@@ -613,7 +613,7 @@ Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so t
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.0.jar`.
+Output: `build/libs/railplanner-0.8.1.jar`.
 
 ### Self-checks and debugging
 
