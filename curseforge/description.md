@@ -50,7 +50,7 @@ The gallery walks through the whole loop: picking points on the map with the pan
 
 1. Install Fabric Loader for Minecraft 26.3 and put Fabric API in `mods/`.
 2. Put Xaero's World Map 1.47.x in `mods/`.
-3. Put `railplanner-0.8.2.jar` in `mods/`.
+3. Put `railplanner-0.8.3.jar` in `mods/`.
 4. Start the game, enter a world, press `B`.
 
 For a server, copy the same jar into the server's `mods/` and restart. Nothing to configure. Players without Rail Planner can still join; only the sync stops being available to them.
@@ -142,7 +142,7 @@ Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟
 
 ## 安装
 
-**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.8.2.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
+**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.8.3.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
 
 **服务端（可选）**：同一个 jar 丢进服务端 `mods/`，不用改配置。服务端只要 Fabric API，不需要 Xaero，也不需要客户端模组；没装的玩家照样能进服，只是没有同步。
 

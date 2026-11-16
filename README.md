@@ -23,13 +23,13 @@
 - 客户端**必须装 Xaero's World Map ≥ 1.47**；服务端只需要 Fabric API，不需要 Xaero
 - 不修改、不重打包 Xaero 的任何代码，只用 mixin 挂进它的地图界面
 - **世界里也能改点**：主手拿着铁轨（可换成别的物品），准星对准世界里的点位竖针右键，弹出的是同一个 Y / 名字 / 类型 框——为了改一个标高不用再开地图
-- 当前版本 **0.8.2**
+- 当前版本 **0.8.3**
 
 ![在地图上选线](docs/screenshot.png)
 
 ## 装
 
-**客户端**：Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**，把 `railplanner-0.8.2.jar` 丢进 `mods/`；Mod Menu 可选（不装也能用，按 `U` 开设置页）。
+**客户端**：Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**，把 `railplanner-0.8.3.jar` 丢进 `mods/`；Mod Menu 可选（不装也能用，按 `U` 开设置页）。
 
 **服务端（可选）**：同一个 jar 丢进服务端的 `mods/`，不用改任何配置。服务端只认 Fabric API——**不需要 Xaero，也不需要任何客户端模组**。没装也照样能进服，只是数据只留在本地。
 
@@ -89,7 +89,7 @@
 ./tools/make-icon.py       # 只改图标时跑：重新生成 assets/railplanner/icon.png（128×128，要 Pillow + numpy）
 ```
 
-产物：`build/libs/railplanner-0.8.2.jar`。
+产物：`build/libs/railplanner-0.8.3.jar`。
 
 自检：`./tools/geom-check.sh`（圆曲线参数与像素化连续性）、`./tools/vertical-check.sh`（点钉住、限坡、直线兜底）、`./tools/version-check.sh`（版本号比较），都不启游戏。
 

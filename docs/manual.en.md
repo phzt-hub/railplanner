@@ -40,7 +40,7 @@ Technically it reads **the height data Xaero's World Map has already stored**: i
 
 1. Minecraft **26.3** + **Fabric Loader 0.19.5** (Java 25 runtime)
 2. The client must have **Fabric API** and **Xaero's World Map ≥ 1.47**
-3. Drop `railplanner-0.8.2.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
+3. Drop `railplanner-0.8.3.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
 4. **The server side is optional**: drop the same jar into the server's `mods/`, no config changes. With it installed, data is stored per UUID on the server and comes back automatically when you change machines; without it, it is purely local, exactly like 0.5.0. The server **does not need Xaero** and needs no client mods either
 
 ### Use
@@ -657,7 +657,7 @@ Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so t
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.2.jar`.
+Output: `build/libs/railplanner-0.8.3.jar`.
 
 ### Self-checks and debugging
 
@@ -844,7 +844,7 @@ So what "hot update" can deliver is "nothing for you to do except restart" — a
 | The old manual step | Now |
 |---|---|
 | See the notice → open a browser → find the release page | Downloads in the background |
-| Pick the right jar by hand | Picks `railplanner-<version>.jar` by file name (the `-sources` jar in the same release also ends in `.jar`, so it is excluded by name) |
+| Pick the right jar by hand | Picks `railplanner-<version>.jar` by file name; the source archive now goes up as `sources-railplanner-<version>.zip`, so a release holds exactly one `.jar` and there is nothing to pick wrong |
 | Worry about a corrupt or wrong download | **Byte size + sha256, both verified**, then the jar is opened to confirm the main class is inside; if any check fails nothing is replaced |
 | Quit the game, cut, paste over | Replaces in place: writes `.new` first, then renames |
 | Start the game again | "Quit game（退出游戏）" in the panel, then start it again from the launcher |
@@ -872,7 +872,7 @@ The `server-plugin/` in the repo is a plugin for **MCDReforged**: the client-sid
 
 Every `check_interval_minutes` minutes it checks GitHub releases:
 
-1. Find the newest release with a `.jar` asset (drafts skipped, prereleases followed by default). **Only the mod jar counts**: the same release also carries `railplanner-<version>-sources.jar`, which ends in `.jar` and matches its own sha256 and size just as well, but a server cannot start with it (the main class isn't inside). So it looks for `railplanner-<version>.jar` by name and skips the release if that isn't there;
+1. Find the newest release carrying `railplanner-<version>.jar` (drafts skipped, prereleases followed by default). **Only the mod jar counts**: from 0.8.3 on the source archive is attached as `sources-railplanner-<version>.zip`, so a release holds a single `.jar`; older releases still have a `-sources.jar`, which ends in `.jar` and matches its own sha256 and size just as well, but a server cannot start with it (the main class isn't inside) - so it still matches by exact name, skips `-sources/-dev/-javadoc/-slim/-api`, and skips the release when the mod jar is not there;
 2. Compare versions with the `railplanner-*.jar` in `server/mods/`; if it isn't newer, do nothing;
 3. If it is newer, download to `mods/.railplanner-download.tmp`, verify against the **sha256 + byte size** GitHub publishes, require it to open as a zip, and then **open it and check** that `fabric.mod.json` exists, the main class `com/phzt/railplanner/RailPlanner.class` is inside, and the mod id and version are right. Any failure deletes the temp file and exits untouched — not a byte in `mods/` changes;
 4. Move the old jar into `mods/.railplanner-backup/` (`keep_backup`) and put the new jar in place;

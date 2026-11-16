@@ -23,13 +23,13 @@ Since 0.6.0 it is **two-sided**: drop the same jar on the server and the server 
 - The client **must have Xaero's World Map ≥ 1.47**; the server needs only Fabric API, not Xaero
 - No Xaero code is modified or repackaged — the mod only hooks into its map screen with a mixin
 - **Points can be edited in the world too**: with rails (or any item you configure) in your main hand, right-click a point's pin and the same Y / name / kind box opens — no trip back to the map just to fix one elevation
-- Current version **0.8.2**
+- Current version **0.8.3**
 
 ![Picking a route on the map](docs/screenshot.png)
 
 ## Install
 
-**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.8.2.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
+**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.8.3.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
 
 **Server (optional)**: drop the same jar into the server's `mods/`; nothing to configure. The server only wants Fabric API — **no Xaero, and no client mods**. Without it you can still join; the data just stays on your machine.
 
@@ -88,7 +88,7 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.2.jar`.
+Output: `build/libs/railplanner-0.8.3.jar`.
 
 Self-checks: `./tools/geom-check.sh` (curve parameters and rasterisation continuity), `./tools/vertical-check.sh` (points pinned, grade limit, straight-line fallback), `./tools/version-check.sh` (version comparison). None of them starts the game.
 
