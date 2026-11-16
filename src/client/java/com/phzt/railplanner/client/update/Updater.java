@@ -48,6 +48,9 @@ public final class Updater {
     }
 
     private static final Logger LOG = LoggerFactory.getLogger("railplanner/updater");
+    /** 主类在包里的路径：换 jar 之前拿它确认下到的是本体，不是源码包。 */
+    private static final String MAIN_CLASS_ENTRY =
+            RailPlanner.class.getName().replace('.', '/') + ".class";
     private static final ExecutorService IO = Executors.newSingleThreadExecutor(runnable -> {
         Thread t = new Thread(runnable, "railplanner-download");
         t.setDaemon(true);
@@ -182,6 +185,15 @@ public final class Updater {
             fail("找不到 mods 里的 jar（开发环境不替换）");
             return;
         }
+        if (!looksLikeMod(jar)) {
+            fail("下到的不是模组本体（包里没有 " + MAIN_CLASS_ENTRY + "），没替换");
+            try {
+                Files.deleteIfExists(jar);
+            } catch (IOException ignored) {
+                // 删不掉就算了，反正没替换
+            }
+            return;
+        }
         try {
             Path temp = target.resolveSibling(target.getFileName() + ".new");
             Files.copy(jar, temp, StandardCopyOption.REPLACE_EXISTING);
@@ -192,6 +204,17 @@ public final class Updater {
         } catch (IOException e) {
             fail("替换失败（文件可能被占用）：" + e.getMessage());
         }
+    }
+
+    /**
+     * 下到的东西到底是不是模组本体。
+     *
+     * <p>sha256 与字节数只说明「和 GitHub 上那个附件一模一样」，说明不了那个附件是本体——
+     * {@code -sources} 源码包同样一字节不差。换 jar 之前开包看一眼主类在不在，不在就整包
+     * 丢掉，别把 mods 里能跑的 jar 顶掉。</p>
+     */
+    static boolean looksLikeMod(Path jar) {
+        return JarCheck.hasMod(jar, MAIN_CLASS_ENTRY);
     }
 
     /** 当前跑着的 jar 在哪。开发环境是 classes 目录，返回 null。 */

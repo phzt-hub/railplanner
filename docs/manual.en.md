@@ -844,8 +844,8 @@ So what "hot update" can deliver is "nothing for you to do except restart" — a
 | The old manual step | Now |
 |---|---|
 | See the notice → open a browser → find the release page | Downloads in the background |
-| Pick the right jar by hand | Picks `railplanner-*.jar` by file name |
-| Worry about a corrupt or wrong download | **Byte size + sha256, both verified**; if either is wrong nothing is replaced |
+| Pick the right jar by hand | Picks `railplanner-<version>.jar` by file name (the `-sources` jar in the same release also ends in `.jar`, so it is excluded by name) |
+| Worry about a corrupt or wrong download | **Byte size + sha256, both verified**, then the jar is opened to confirm the main class is inside; if any check fails nothing is replaced |
 | Quit the game, cut, paste over | Replaces in place: writes `.new` first, then renames |
 | Start the game again | "Quit game（退出游戏）" in the panel, then start it again from the launcher |
 
@@ -872,20 +872,23 @@ The `server-plugin/` in the repo is a plugin for **MCDReforged**: the client-sid
 
 Every `check_interval_minutes` minutes it checks GitHub releases:
 
-1. Find the newest release with a `.jar` asset (drafts skipped, prereleases followed by default);
+1. Find the newest release with a `.jar` asset (drafts skipped, prereleases followed by default). **Only the mod jar counts**: the same release also carries `railplanner-<version>-sources.jar`, which ends in `.jar` and matches its own sha256 and size just as well, but a server cannot start with it (the main class isn't inside). So it looks for `railplanner-<version>.jar` by name and skips the release if that isn't there;
 2. Compare versions with the `railplanner-*.jar` in `server/mods/`; if it isn't newer, do nothing;
-3. If it is newer, download to `mods/.railplanner-download.tmp`, verify against the **sha256 + byte size** GitHub publishes, and require it to open as a zip;
+3. If it is newer, download to `mods/.railplanner-download.tmp`, verify against the **sha256 + byte size** GitHub publishes, require it to open as a zip, and then **open it and check** that `fabric.mod.json` exists, the main class `com/phzt/railplanner/RailPlanner.class` is inside, and the mod id and version are right. Any failure deletes the temp file and exits untouched — not a byte in `mods/` changes;
 4. Move the old jar into `mods/.railplanner-backup/` (`keep_backup`) and put the new jar in place;
-5. With `auto_restart` on and the server running → say so in chat, and after `restart_delay_seconds` seconds restart the server with MCDR's own `restart`.
+5. With `auto_restart` on and the server running → say so in chat, and after `restart_delay_seconds` seconds restart the server with MCDR's own `restart`;
+6. The swap only counts once the server prints `Done`. If it stops again before `Done` (the new jar won't start), the plugin puts the backup back and starts the server again inside that stop event — it has to happen synchronously, because MCDR's `EXIT_AFTER_STOP` makes MCDR itself exit right after the event is dispatched, so a timer would be too late.
 
 ### Install
 
 Pack `server-plugin/` into a `.mcdr` (it is just a zip) and drop it into MCDR's `plugins/`:
 
 ```sh
-cd railplanner/server-plugin
-zip -r ../../railplanner_updater-1.0.0.mcdr mcdreforged.plugin.json railplanner_updater
+cd railplanner
+bash tools/build-server-plugin.sh    # writes build/railplanner_updater-<version>.mcdr
 ```
+
+The version comes from `server-plugin/mcdreforged.plugin.json`; the script packs with python's `zipfile`, so no `zip` binary is needed.
 
 Then `!!MCDR plugin load railplanner_updater`, or just restart MCDR. The first load generates `config/railplanner_updater/config.json`.
 

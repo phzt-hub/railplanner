@@ -206,7 +206,7 @@ public final class UpdateChecker {
                 String url = release.has("html_url") ? release.get("html_url").getAsString() : RELEASES_PAGE;
                 cfg.latestVersion = tag;
                 cfg.latestUrl = url;
-                readAsset(release, cfg);
+                readAsset(release, cfg, tag);
                 evaluate(tag, url, current);
                 // 有新版本且开了自动更新：后台下载、校验、替换，然后设置页上会多出「立即重启」
                 Updater.maybeAuto();
@@ -235,29 +235,47 @@ public final class UpdateChecker {
                 status, detail.isEmpty() ? "" : "— " + detail);
     }
 
-    /** 从 release 的 assets 里挑出模组 jar，记下地址、大小和 sha256。 */
-    private static void readAsset(JsonObject release, RailConfig cfg) {
+    /**
+     * 从 release 的 assets 里挑出模组本体 jar，记下地址、大小和 sha256。
+     *
+     * <p>同一个 release 里还挂着 {@code railplanner-<版本>-sources.jar} 源码包：它同样以
+     * {@code .jar} 结尾，digest 与字节数也照样对得上，但换上去客户端起不来（主类不在里面）。
+     * 所以先按名字找 {@code railplanner-<版本>.jar}，退一步也要排除源码包与开发包；
+     * 一个都挑不出来就留空，宁可这一版不自动更新。</p>
+     */
+    private static void readAsset(JsonObject release, RailConfig cfg, String tag) {
         cfg.pendingAssetUrl = "";
         cfg.pendingSha256 = "";
         cfg.pendingSize = 0;
         if (!release.has("assets") || !release.get("assets").isJsonArray()) {
             return;
         }
+        String exact = AssetNames.exactName(tag);
+        JsonObject picked = null;
         for (JsonElement element : release.getAsJsonArray("assets")) {
             if (!element.isJsonObject()) {
                 continue;
             }
             JsonObject asset = element.getAsJsonObject();
             String name = asset.has("name") ? asset.get("name").getAsString() : "";
-            if (!name.startsWith("railplanner") || !name.endsWith(".jar")) {
+            if (!AssetNames.isModJar(name)) {
                 continue;
             }
-            cfg.pendingAssetUrl = asset.has("browser_download_url")
-                    ? asset.get("browser_download_url").getAsString() : "";
-            cfg.pendingSha256 = asset.has("digest") ? asset.get("digest").getAsString() : "";
-            cfg.pendingSize = asset.has("size") ? asset.get("size").getAsLong() : 0;
+            if (name.equals(exact)) {
+                picked = asset;
+                break;
+            }
+            if (picked == null) {
+                picked = asset;
+            }
+        }
+        if (picked == null) {
             return;
         }
+        cfg.pendingAssetUrl = picked.has("browser_download_url")
+                ? picked.get("browser_download_url").getAsString() : "";
+        cfg.pendingSha256 = picked.has("digest") ? picked.get("digest").getAsString() : "";
+        cfg.pendingSize = picked.has("size") ? picked.get("size").getAsLong() : 0;
     }
 
     private static void evaluate(String tag, String url, String current) {
