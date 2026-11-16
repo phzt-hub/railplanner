@@ -160,9 +160,9 @@ def write_channel_pages(root: Path, channel: str, base: str) -> dict:
     rows = []
     for e in files:
         rows.append(
-            '<tr><td><a href="{ch}/{name}">{name}</a></td><td>{ver}</td><td>{size}</td>'
+            '<tr><td><a href="{name}">{name}</a></td><td>{ver}</td><td>{size}</td>'
             '<td class="sha">{sha}</td><td>{at}</td></tr>'.format(
-                ch=channel, name=e['name'], ver=e['version'], size=human(e['size']),
+                name=e['name'], ver=e['version'], size=human(e['size']),
                 sha=e['sha256'][:16], at=e.get('added_at', '')[:19].replace('T', ' ')))
     if not rows:
         rows.append('<tr><td colspan="5" class="empty">这一通道还没有包</td></tr>')
@@ -180,6 +180,29 @@ def write_channel_pages(root: Path, channel: str, base: str) -> dict:
     )
     (channel_dir(root, channel) / 'index.html').write_text(html, encoding='utf-8')
     return latest or {}
+
+
+def notes_card(root: Path) -> str:
+    """首页的「待查清单」入口：站根有 待查清单.html 就挂上，没有就不挂。"""
+    page = root / '待查清单.html'
+    if not page.exists():
+        return ''
+    n, updated = 0, ''
+    md = root / '待查清单.md'
+    if md.exists():
+        try:
+            text = md.read_text(encoding='utf-8')
+            head = text.split('## 已结案')[0]
+            n = sum(1 for line in head.splitlines() if line.startswith('## R-'))
+            updated = now_local(md.stat().st_mtime)
+        except OSError:
+            pass
+    return ('<div class="card">\n'
+            '  <h2><a href="待查清单.html">待查清单</a> <span class="count">待查 {} 条</span></h2>\n'
+            '  <p class="hint">已知问题与实测排除记录，只收 railplanner 的</p>\n'
+            '  <a class="pkg" href="待查清单.html">待查清单.html</a>'
+            '<div class="meta">原文 待查清单.md · 更新于 {}</div>\n'
+            '</div>').format(n, updated)
 
 
 def write_root_page(root: Path, base: str) -> None:
@@ -200,6 +223,7 @@ def write_root_page(root: Path, base: str) -> None:
             hint=('服务端默认从这里拉（channel=release）' if channel == 'release'
                   else '自己手动下载的调试包，只留最近 5 个'),
             body=body, count=len(entries)))
+    cards.append(notes_card(root))
     (root / 'index.html').write_text(ROOT_HTML.format(
         base=base, cards='\n'.join(cards), generated=now_local()), encoding='utf-8')
 
@@ -212,44 +236,86 @@ ROOT_CARD = '''<div class="card">
 
 ROOT_HTML = '''<!doctype html>
 <html lang="zh-CN"><head>
-<meta charset="utf-8"><title>Rail Planner 内网发布站</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail Planner 内网发布站</title>
 <style>
- body{{font:15px/1.6 -apple-system,"Noto Sans SC",sans-serif;margin:2rem auto;max-width:900px;padding:0 1rem;color:#222}}
- h1{{font-size:1.4rem;margin-bottom:.2rem}}
- .sub{{color:#777;font-size:.85rem;margin-bottom:1.6rem}}
- .card{{border:1px solid #e2e2e2;border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem}}
- .card h2{{font-size:1rem;margin:0 0 .3rem}}
- .card a{{color:#0a58ca;text-decoration:none}}
- .hint{{color:#888;font-size:.82rem;margin:.2rem 0 .6rem}}
- .pkg{{font-family:ui-monospace,monospace;font-size:.95rem;word-break:break-all}}
- .meta{{color:#666;font-size:.8rem;font-family:ui-monospace,monospace}}
- .count{{color:#999;font-weight:400;font-size:.8rem}}
- .empty{{color:#aaa}}
- footer{{color:#999;font-size:.78rem;margin-top:2rem;border-top:1px solid #eee;padding-top:.6rem}}
+  /* 配色/字体/圆角取自 release.phzt.lan 的 apk 下载页（同一套 CSS 变量），改一处要同步三页 */
+  :root{{ color-scheme: light dark; --fg:#111; --dim:#666; --bg:#f4f5f7; --card:#fff;
+         --line:#e3e5e8; --ok:#0a7a3d; --okbg:#e7f6ed; --warn:#9a2b00; --warnbg:#fdeee8;
+         --accent:#2f6fed; --code:#f2f4f7; --th:#f7f8fa; }}
+  @media (prefers-color-scheme: dark) {{
+    :root{{ --fg:#e8e8ea; --dim:#9aa0a6; --bg:#16181c; --card:#1e2126; --line:#2e3238;
+           --ok:#6ee7a0; --okbg:#12331f; --warn:#ffa07a; --warnbg:#3a1d12;
+           --accent:#7cb0ff; --code:#262a31; --th:#23272d; }}
+  }}
+  *{{ box-sizing:border-box; }}
+  body{{ margin:0; padding:16px; background:var(--bg); color:var(--fg);
+        font:15px/1.55 -apple-system,"Segoe UI","Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif; }}
+  .wrap{{ max-width:720px; margin:0 auto; }}
+  h1{{ font-size:20px; margin:0 0 4px; }}
+  .sub{{ margin:0 0 14px; color:var(--dim); font-size:13px; }}
+  .sub a{{ color:var(--accent); text-decoration:none; }}
+  .card{{ background:var(--card); border:1px solid var(--line); border-radius:10px;
+         padding:13px 14px 14px; margin-bottom:12px; }}
+  .card h2{{ font-size:16px; margin:0 0 2px; display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; }}
+  .card h2 a{{ color:var(--accent); text-decoration:none; font-size:19px; font-weight:650; }}
+  .card h2 a:hover{{ text-decoration:underline; }}
+  .hint{{ margin:0 0 8px; color:var(--dim); font-size:13px; }}
+  .pkg{{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; color:var(--accent);
+        text-decoration:none; word-break:break-all; }}
+  .pkg:hover{{ text-decoration:underline; }}
+  .meta{{ margin-top:3px; color:var(--dim); font-size:11.5px;
+         font-family:ui-monospace,Menlo,Consolas,monospace; }}
+  .count{{ color:var(--dim); font-weight:400; font-size:12.5px; }}
+  .empty{{ color:var(--dim); }}
+  footer{{ color:var(--dim); font-size:12px; text-align:center; margin:18px 0 8px; }}
 </style></head><body>
+<div class="wrap">
 <h1>Rail Planner 内网发布站</h1>
 <div class="sub">{base} —— 默认只发这里；GitHub / CurseForge 要你点头才推</div>
 {cards}
 <footer>生成于 {generated} · 发布工具 tools/publish-lan.py</footer>
+</div>
 </body></html>
 '''
 
+
 CHANNEL_HTML = '''<!doctype html>
 <html lang="zh-CN"><head>
-<meta charset="utf-8"><title>Rail Planner {channel} 通道</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail Planner {channel} 通道</title>
 <style>
- body{{font:15px/1.6 -apple-system,"Noto Sans SC",sans-serif;margin:2rem auto;max-width:980px;padding:0 1rem;color:#222}}
- h1{{font-size:1.3rem;margin-bottom:.2rem}}
- .sub{{color:#777;font-size:.85rem;margin-bottom:1.2rem}}
- table{{border-collapse:collapse;width:100%;font-size:.85rem}}
- th,td{{text-align:left;padding:.45rem .5rem;border-bottom:1px solid #eee}}
- th{{color:#888;font-weight:500;font-size:.8rem}}
- td.sha,.meta{{font-family:ui-monospace,monospace;color:#666}}
- a{{color:#0a58ca;text-decoration:none}}
- .latest{{background:#f6f8fa;border-radius:8px;padding:.5rem .7rem;font-size:.85rem}}
- .empty{{color:#aaa}}
- footer{{color:#999;font-size:.78rem;margin-top:1.6rem}}
+  /* 配色/字体/圆角取自 release.phzt.lan 的 apk 下载页（同一套 CSS 变量），改一处要同步三页 */
+  :root{{ color-scheme: light dark; --fg:#111; --dim:#666; --bg:#f4f5f7; --card:#fff;
+         --line:#e3e5e8; --ok:#0a7a3d; --okbg:#e7f6ed; --warn:#9a2b00; --warnbg:#fdeee8;
+         --accent:#2f6fed; --code:#f2f4f7; --th:#f7f8fa; }}
+  @media (prefers-color-scheme: dark) {{
+    :root{{ --fg:#e8e8ea; --dim:#9aa0a6; --bg:#16181c; --card:#1e2126; --line:#2e3238;
+           --ok:#6ee7a0; --okbg:#12331f; --warn:#ffa07a; --warnbg:#3a1d12;
+           --accent:#7cb0ff; --code:#262a31; --th:#23272d; }}
+  }}
+  *{{ box-sizing:border-box; }}
+  body{{ margin:0; padding:16px; background:var(--bg); color:var(--fg);
+        font:15px/1.55 -apple-system,"Segoe UI","Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif; }}
+  .wrap{{ max-width:980px; margin:0 auto; }}
+  h1{{ font-size:20px; margin:0 0 4px; }}
+  .sub{{ margin:0 0 14px; color:var(--dim); font-size:13px; }}
+  .sub a{{ color:var(--accent); text-decoration:none; }}
+  .latest{{ background:var(--card); border:1px solid var(--line); border-radius:10px;
+           padding:11px 14px; margin:0 0 14px; font-size:13px; }}
+  .latest code{{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }}
+  table{{ border-collapse:collapse; width:100%; font-size:13px; }}
+  th,td{{ text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); }}
+  th{{ color:var(--dim); font-weight:500; font-size:12px; }}
+  td.sha,.meta{{ font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--dim); font-size:12px; }}
+  a{{ color:var(--accent); text-decoration:none; }}
+  a:hover{{ text-decoration:underline; }}
+  .empty{{ color:var(--dim); }}
+  footer{{ color:var(--dim); font-size:12px; margin-top:18px; text-align:center; }}
 </style></head><body>
+<div class="wrap">
 <h1>{title} · {channel} 通道</h1>
 <div class="sub"><a href="../">← 回首页</a>　共 {count} 个文件 / {total}</div>
 {latest}
@@ -257,6 +323,7 @@ CHANNEL_HTML = '''<!doctype html>
 {rows}
 </table>
 <footer>生成于 {generated}</footer>
+</div>
 </body></html>
 '''
 
