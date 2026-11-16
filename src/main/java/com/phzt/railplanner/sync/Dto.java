@@ -22,9 +22,10 @@ public final class Dto {
      * 协议版本。客户端和服务端对不上就不同步，各留各的本地数据。
      *
      * <p>2：锚点带上 Y 和标记位（{@code [x, z, y, flags]}），0.6.x 的 [x, z] 读进来当「还没解析」。<br>
-     * 3：点的名字（{@code anchorNames}，与锚点同下标）和点的类型（flags 的 bit8 起）。</p>
+     * 3：点的名字（{@code anchorNames}，与锚点同下标）和点的类型（flags 的 bit8 起）。<br>
+     * 4：正交布线（{@code orthogonal}，进内容指纹）。</p>
      */
-    public static final int PROTO = 3;
+    public static final int PROTO = 4;
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final Gson COMPACT = new Gson();
@@ -38,6 +39,8 @@ public final class Dto {
         public String name;
         public int color;
         public double radius = 24.0;
+        /** 这条线走正交布线（沿 X / Z 铺，90° 弯拐）。老客户端/老存档没有这一项 = false。 */
+        public boolean orthogonal;
         public long updatedAt;
         public List<int[]> anchors = new ArrayList<>();
         /** 与 anchors 同下标的点名字，空字符串表示没起名；老客户端不带这个字段。 */
@@ -50,13 +53,14 @@ public final class Dto {
             return anchors == null ? 0 : anchors.size();
         }
 
-        /** 内容指纹：由 id / 名字 / 颜色 / 半径 / 锚点决定。 */
+        /** 内容指纹：由 id / 名字 / 颜色 / 半径 / 正交 / 锚点决定。 */
         public String hash() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", id);
             m.put("name", name);
             m.put("color", color);
             m.put("radius", clean(radius));
+            m.put("orthogonal", orthogonal);
             m.put("anchors", anchors);
             m.put("anchorNames", anchorNames);
             return sha256(COMPACT.toJson(m));

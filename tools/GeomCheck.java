@@ -57,7 +57,63 @@ public class GeomCheck {
         check("起点格", p2.xs[0] == 0 && p2.zs[0] == 0, "(" + p2.xs[0] + "," + p2.zs[0] + ")");
         check("终点格", p2.xs[p2.size() - 1] == 100 && p2.zs[p2.size() - 1] == 100, "(" + p2.xs[p2.size() - 1] + "," + p2.zs[p2.size() - 1] + ")");
 
+        // 8. 正交化：斜的一段 → 一个 90° 弯，端点不动
+        OrthoRoute.Result o1 = OrthoRoute.build(List.of(new Vec2(0.5, 0.5), new Vec2(100.5, 40.5)), 24);
+        check("正交顶点数", o1.points().size() == 3, "pts=" + o1.points().size());
+        check("正交全是沿轴", axisOnly(o1.points()), "pts=" + o1.points().size());
+        check("正交终点不动", Math.abs(o1.points().get(2).x - 100.5) < 1e-9
+                && Math.abs(o1.points().get(2).z - 40.5) < 1e-9, "end=" + o1.points().get(2).x + "," + o1.points().get(2).z);
+        check("正交不外推", o1.pushed() < 1e-9, "pushed=" + o1.pushed());
+        Alignment a1 = Alignment.ofOrthogonal(o1.points(), 24);
+        double expectO1 = (100 - 24) + Math.PI / 2 * 24 + (40 - 24);
+        check("正交总长", Math.abs(a1.length() - expectO1) < 1e-6, "len=" + a1.length() + " expect=" + expectO1);
+        check("正交半径不缩", Math.abs(a1.corners().get(0).radius - 24) < 1e-9, "R=" + a1.corners().get(0).radius);
+        check("正交拐角都是90°", Math.abs(Math.toDegrees(a1.corners().get(0).deflection) - 90) < 1e-9,
+                "Δ=" + Math.toDegrees(a1.corners().get(0).deflection));
+        BlockPath p3 = Rasterizer.rasterize(a1);
+        check("正交像素化8邻接", contiguous(p3), "cells=" + p3.size());
+
+        // 9. 太短的一段：把端点往外推，半径照样是 24
+        OrthoRoute.Result o2 = OrthoRoute.build(List.of(new Vec2(0.5, 0.5), new Vec2(10.5, 5.5)), 24);
+        Alignment a2 = Alignment.ofOrthogonal(o2.points(), 24);
+        check("正交外推后半径不缩", Math.abs(a2.corners().get(0).radius - 24) < 1e-9, "R=" + a2.corners().get(0).radius);
+        check("正交外推有记录", o2.pushed() > 1, "pushed=" + String.format("%.1f", o2.pushed()));
+        check("正交外推后全沿轴", axisOnly(o2.points()), "pts=" + o2.points().size());
+
+        // 10. 本来就沿轴：不插拐点，长度等于折线长
+        OrthoRoute.Result o3 = OrthoRoute.build(List.of(new Vec2(0.5, 0.5), new Vec2(100.5, 0.5), new Vec2(100.5, 100.5)), 24);
+        check("正交不插多余拐点", o3.points().size() == 3 && o3.bends() == 1, "pts=" + o3.points().size());
+        Alignment a3 = Alignment.ofOrthogonal(o3.points(), 24);
+        double expectO3 = 2 * (100 - 24) + Math.PI / 2 * 24;
+        check("正交单弯总长", Math.abs(a3.length() - expectO3) < 1e-6, "len=" + a3.length());
+
+        // 11. 两个弯共用一截：两腿都够，半径都不缩
+        OrthoRoute.Result o4 = OrthoRoute.build(List.of(new Vec2(0.5, 0.5), new Vec2(100.5, 60.5), new Vec2(220.5, 60.5)), 24);
+        Alignment a4 = Alignment.ofOrthogonal(o4.points(), 24);
+        boolean radiiOk = true;
+        for (Alignment.Corner c : a4.corners()) radiiOk &= Math.abs(c.radius - 24) < 1e-9;
+        check("正交两弯半径", a4.corners().size() == 2 && radiiOk, "corners=" + a4.corners().size());
+        check("正交连续", contiguous(Rasterizer.rasterize(a4)), "cells=" + Rasterizer.rasterize(a4).size());
+
         System.out.println(fails == 0 ? "ALL PASS" : ("FAILURES: " + fails));
         if (fails > 0) System.exit(1);
+    }
+
+    /** 折线每一段是不是都严格沿 X 或 Z。 */
+    static boolean axisOnly(List<Vec2> pts) {
+        for (int i = 0; i + 1 < pts.size(); i++) {
+            double dx = Math.abs(pts.get(i + 1).x - pts.get(i).x);
+            double dz = Math.abs(pts.get(i + 1).z - pts.get(i).z);
+            if (dx > 1e-6 && dz > 1e-6) return false;
+        }
+        return true;
+    }
+
+    /** 8 邻接：相邻两格不跳格。 */
+    static boolean contiguous(BlockPath p) {
+        for (int i = 1; i < p.size(); i++) {
+            if (Math.abs(p.xs[i] - p.xs[i - 1]) > 1 || Math.abs(p.zs[i] - p.zs[i - 1]) > 1) return false;
+        }
+        return true;
     }
 }

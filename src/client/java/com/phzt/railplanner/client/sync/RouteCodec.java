@@ -19,6 +19,7 @@ public final class RouteCodec {
         d.name = r.name;
         d.color = r.color;
         d.radius = r.radius;
+        d.orthogonal = r.orthogonal;
         d.updatedAt = System.currentTimeMillis();
         d.anchors = new ArrayList<>();
         d.anchorNames = new ArrayList<>();
@@ -32,6 +33,7 @@ public final class RouteCodec {
     public static RailRoute toRoute(Dto.Route d) {
         RailRoute r = new RailRoute(d.id, d.name, d.color);
         r.radius = d.radius > 0 ? d.radius : 24.0;
+        r.orthogonal = d.orthogonal;
         if (d.anchors != null) {
             for (int i = 0; i < d.anchors.size(); i++) {
                 Anchor anchor = Anchor.fromArray(d.anchors.get(i));

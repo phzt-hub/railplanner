@@ -5,6 +5,7 @@ import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
 import com.phzt.railplanner.client.geom.Alignment;
+import com.phzt.railplanner.client.geom.OrthoRoute;
 import com.phzt.railplanner.client.geom.Vec2;
 import com.phzt.railplanner.client.model.Anchor;
 import com.phzt.railplanner.client.model.PointKind;
@@ -359,6 +360,7 @@ public final class Planner {
                 existing.name = fresh.name;
                 existing.color = fresh.color;
                 existing.radius = fresh.radius;
+                existing.orthogonal = fresh.orthogonal;
                 existing.anchors.clear();
                 existing.anchors.addAll(fresh.anchors);
                 existing.invalidate();
@@ -397,6 +399,8 @@ public final class Planner {
         RailRoute r = new RailRoute(UUID.randomUUID().toString(),
                 com.phzt.railplanner.client.Loc.s("线 ", "Line ") + (routes.size() + 1),
                 PALETTE[routes.size() % PALETTE.length]);
+        // 新线跟着设置页的默认值走；老线路读盘时没这一项，不会被顺手改掉。
+        r.orthogonal = RailConfig.get().orthogonal;
         routes.add(r);
         current = r;
         displayed = r;
@@ -421,6 +425,32 @@ public final class Planner {
         hoverIndex = -1;
         stats = null;
         saveNow();
+    }
+
+    /**
+     * 面板上那个「正交化」小按钮：把这条线在「沿 X/Z 铺 + 90° 弯」和自由斜线之间切换。
+     *
+     * <p>只改这一条线的标记，锚点一个不动；被外推的只是导线端点，存盘的坐标还是玩家点下去
+     * 的那一个。老线路要转过来就得点这一下（设置页那个开关只管新线）。</p>
+     */
+    public static void toggleOrthogonal(RailRoute route) {
+        if (route == null) {
+            return;
+        }
+        route.orthogonal = !route.orthogonal;
+        route.invalidate();
+        stats = null;
+        statsDirty = true;
+        markDirty();
+        if (!route.orthogonal) {
+            toast(Loc.s("已取消正交化：这条线恢复自由斜线", "Orthogonal routing off: free-form again"));
+            return;
+        }
+        OrthoRoute.Result ortho = route.ortho();
+        String extra = ortho == null ? "" : Loc.s(
+                "：" + ortho.bends() + " 个 90° 弯，端点外推 " + Math.round(ortho.pushed()) + " 格",
+                ": " + ortho.bends() + " right-angle bends, ends pushed " + Math.round(ortho.pushed()) + " blocks");
+        toast(route.name + extra);
     }
 
     public static void addAnchor(MapView view, double gx, double gy) {
@@ -495,6 +525,19 @@ public final class Planner {
             return true;
         }
         if (button == 1) {
+            RailRoute chip = PlannerRenderer.hitChip(gx, gy);
+            if (chip != null) {
+                toggleOrthogonal(chip);
+                return true;
+            }
+            RailRoute label = PlannerRenderer.hitLabel(gx, gy);
+            if (label != null) {
+                // 地图上的线名标签自己吃掉这一下：不然双击改名会先在地图上凭空多一个锚点。
+                if (doubleClick) {
+                    openRouteEditor(label);
+                }
+                return true;
+            }
             if (PlannerRenderer.hitName(gx, gy)) {
                 // 第一下就吃掉：不然双击线名会先在地图上加一个点。
                 if (doubleClick) {

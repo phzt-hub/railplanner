@@ -67,7 +67,8 @@ public class RailConfigScreen extends Screen {
         this.colW = Math.min(200, Math.max(60, (this.width - 3 * gap) / 2));
         this.leftX = this.width / 2 - gap / 2 - this.colW;
         this.rightX = this.width / 2 + gap / 2;
-        int top = Math.max(56, this.height / 2 - 84);
+        // 两栏各加过几行，720×450 这种尺寸下把整块往上提一点，底下的状态行才放得下
+        int top = Math.max(48, this.height / 2 - 96);
         this.headerY = top - 13;
         int left = top;
         int right = top;
@@ -177,6 +178,16 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 正交布线：只管新建的线，老线路在地图面板上点「正交化」才转
+        this.addRenderableWidget(Button.builder(labelOrtho(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.orthogonal = !cfg.orthogonal;
+            cfg.save();
+            b.setMessage(labelOrtho());
+            LOG.info("正交布线（新线默认值） → {}", cfg.orthogonal ? "开" : "关");
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
+
         this.addRenderableWidget(Button.builder(labelUpdates(), b -> {
             RailConfig cfg = RailConfig.get();
             cfg.checkUpdates = !cfg.checkUpdates;
@@ -277,7 +288,7 @@ public class RailConfigScreen extends Screen {
 
         // 右栏多了一行「诊断日志」，720×450 这种 GUI 尺寸下底下的状态行会被挤出屏幕，
         // 所以信息块从紧贴底栏开始、行距收 1px，五行状态正好放得下。
-        this.infoTop = bottom + ROW + 2;
+        this.infoTop = bottom + 14;
         LOG.info("设置页打开：{}x{}，左栏 {} 行，右栏 {} 行", this.width, this.height,
                 (left - top) / ROW, (right - top) / ROW);
     }
@@ -447,6 +458,12 @@ public class RailConfigScreen extends Screen {
 
     private static Component labelRestart() {
         return Component.literal(Updater.installed() ? Loc.s("退出游戏以应用新版本", "Quit to apply the update") : Loc.s("退出游戏", "Quit Game"));
+    }
+
+    private static Component labelOrtho() {
+        return Component.literal(RailConfig.get().orthogonal
+                ? Loc.s("正交布线：开（新线沿 X/Z 铺）", "Orthogonal routing: on")
+                : Loc.s("正交布线：关（新线可斜铺）", "Orthogonal routing: off"));
     }
 
     private static Component labelLock() {

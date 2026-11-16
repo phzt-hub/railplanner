@@ -58,6 +58,13 @@ public final class RailConfig {
      * 关掉之后右键就只是原版的「放方块」。
      */
     public boolean poiEdit = true;
+    /**
+     * 正交布线：新画的线尽量沿 X / Z 轴铺，方向变了用一个 90° 弯去拐（默认开）。
+     *
+     * <p>只管新建的线：老线路存盘里没有这一项，读出来是关的，要转就在地图面板上点
+     * 「正交化」。关掉之后想怎么斜就怎么斜（山区展线、螺旋展线）。</p>
+     */
+    public boolean orthogonal = true;
     /** 触发编辑框的物品 id，默认普通铁轨；写错只是不触发，不会崩。 */
     public String poiEditItem = "minecraft:rail";
     /**

@@ -201,6 +201,109 @@ public final class Alignment {
         return new Alignment(pieces, corners);
     }
 
+    /**
+     * 正交折线（每段都沿 X 或 Z）的导线：拐角一律 90°，按设计半径铺「直线—圆弧—直线」。
+     *
+     * <p>跟 {@link #of} 的区别是圆角不靠试算：90° 的切线长 T 就等于半径 R，每个拐点吃 R，
+     * 两个弯夹着的那截直段要 2R（{@link OrthoRoute} 已经把腿推到够长）。段短到放不下时
+     * 按半段夹，半径只减不增，绝不会让两条切线叠在一起。</p>
+     *
+     * @param vertices 正交折线的顶点，首尾是端点、中间是拐点
+     * @param radius   设计半径
+     */
+    public static Alignment ofOrthogonal(List<Vec2> vertices, double radius) {
+        List<Piece> pieces = new ArrayList<>();
+        List<Corner> corners = new ArrayList<>();
+        int n = vertices.size();
+        if (n < 2) {
+            return new Alignment(pieces, corners);
+        }
+        double[] len = new double[n - 1];
+        double[] ux = new double[n - 1];
+        double[] uz = new double[n - 1];
+        for (int i = 0; i < n - 1; i++) {
+            Vec2 d = vertices.get(i + 1).sub(vertices.get(i));
+            len[i] = d.length();
+            Vec2 u = d.normalize();
+            ux[i] = u.x;
+            uz[i] = u.z;
+        }
+        double wanted = Math.max(0.5, radius);
+        boolean[] bend = new boolean[n];
+        for (int k = 1; k < n - 1; k++) {
+            if (len[k - 1] < EPS || len[k] < EPS) {
+                continue;
+            }
+            double dot = ux[k - 1] * ux[k] + uz[k - 1] * uz[k];
+            // 同向直着走 / 掉头：都不做圆曲线
+            bend[k] = Math.abs(dot) < 0.5;
+        }
+        double[] tangent = new double[n];
+        for (int k = 1; k < n - 1; k++) {
+            if (!bend[k]) {
+                continue;
+            }
+            // 一截直段要是两头都是弯，两个弯各吃一半；只有一头是弯，那个弯可以吃满。
+            double capA = bend[k - 1] ? len[k - 1] * 0.5 : len[k - 1];
+            double capB = bend[k + 1] ? len[k] * 0.5 : len[k];
+            tangent[k] = Math.min(wanted, Math.min(capA, capB));
+        }
+
+        double s = 0.0;
+        Vec2 cur = vertices.get(0);
+        for (int k = 1; k < n - 1; k++) {
+            Vec2 v = vertices.get(k);
+            if (!bend[k]) {
+                double dot = len[k - 1] < EPS || len[k] < EPS
+                        ? 1.0 : ux[k - 1] * ux[k] + uz[k - 1] * uz[k];
+                if (dot < -0.5) {
+                    // 掉头：折回来，不画圆弧，但直段不能越过这个点
+                    double straight = v.sub(cur).length();
+                    if (straight > EPS) {
+                        Vec2 d = v.sub(cur).normalize();
+                        pieces.add(new Piece(Kind.LINE, s, straight, -1, 0.0,
+                                cur.x, cur.z, d.x, d.z, 0, 0, 0, 0, 0));
+                        s += straight;
+                    }
+                    cur = v;
+                }
+                continue;
+            }
+            double t = tangent[k];
+            Vec2 t1 = v.sub(ux[k - 1] * t, uz[k - 1] * t);
+            Vec2 t2 = v.add(ux[k] * t, uz[k] * t);
+            Vec2 center = t1.add(ux[k] * t, uz[k] * t);
+            double a0 = Math.atan2(t1.z - center.z, t1.x - center.x);
+            double a1 = Math.atan2(t2.z - center.z, t2.x - center.x);
+            double sweep = wrapPi(a1 - a0);
+            double straight = t1.sub(cur).length();
+            if (straight > EPS) {
+                Vec2 d = t1.sub(cur).normalize();
+                pieces.add(new Piece(Kind.LINE, s, straight, -1, 0.0,
+                        cur.x, cur.z, d.x, d.z, 0, 0, 0, 0, 0));
+                s += straight;
+            }
+            double arcLen = t * Math.abs(sweep);
+            if (arcLen > EPS) {
+                pieces.add(new Piece(Kind.ARC, s, arcLen, k, Math.abs(sweep), 0, 0, 0, 0,
+                        center.x, center.z, t, a0, sweep));
+                s += arcLen;
+            }
+            double deflection = Math.abs(sweep);
+            corners.add(new Corner(-1, v.x, v.z, t, deflection, t, arcLen,
+                    t * (1.0 / Math.cos(deflection / 2.0) - 1.0)));
+            cur = t2;
+        }
+        Vec2 end = vertices.get(n - 1);
+        double last = end.sub(cur).length();
+        if (last > EPS) {
+            Vec2 d = end.sub(cur).normalize();
+            pieces.add(new Piece(Kind.LINE, s, last, -1, 0.0,
+                    cur.x, cur.z, d.x, d.z, 0, 0, 0, 0, 0));
+        }
+        return new Alignment(pieces, corners);
+    }
+
     private static double wrapPi(double a) {
         while (a > Math.PI) {
             a -= Math.PI * 2.0;

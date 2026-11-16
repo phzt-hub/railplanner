@@ -40,6 +40,19 @@ public final class PlannerRenderer {
     private static int nameH;
     private static RailRoute nameRoute;
 
+    /** 上一帧画在地图上的线名标签：单击吃掉、双击改名字（和面板上那行线名同一件事）。 */
+    public record NameLabel(RailRoute route, int x, int y, int w, int h) {
+    }
+
+    private static final List<NameLabel> LABELS = new ArrayList<>();
+
+    /** 上一帧画在面板标题行右端的「正交化」小按钮。 */
+    private static RailRoute chipRoute;
+    private static int chipX;
+    private static int chipY;
+    private static int chipW;
+    private static int chipH;
+
     /** 上一帧画出来的色板 / 色相条，点它们改颜色。 */
     private static final int[] SWATCH_X = new int[12];
     private static int swatchY;
@@ -58,6 +71,8 @@ public final class PlannerRenderer {
     public static void render(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY,
                               List<RailRoute> routes, RailRoute current, int hoverIndex, int dragIndex) {
         nameRoute = null;
+        chipRoute = null;
+        LABELS.clear();
         RailRoute shown = Planner.displayRoute();
         int drawable = 0;
         for (RailRoute r : routes) {
@@ -264,6 +279,7 @@ public final class PlannerRenderer {
         int ty = (int) Math.round(y) - 16;
         g.fill(tx - 3, ty - 2, tx + w + 3, ty + 11, shown ? 0xC0101418 : 0x90101418);
         g.text(font, text, tx, ty, shown ? 0xFFFFF3C4 : 0xFFAAB4BE);
+        LABELS.add(new NameLabel(route, tx - 3, ty - 2, w + 6, 15));
     }
 
     private static void drawRubberBand(GuiGraphicsExtractor g, MapView view, RailRoute route, int mouseX, int mouseY) {
@@ -304,6 +320,12 @@ public final class PlannerRenderer {
                     }
                     add(lines, colors, String.format(Loc.s("最小半径 %.1f · 最大偏角 %.1f°", "Min radius %.1f · max deflection %.1f°"), minR, maxDefl), TEXT);
                 }
+            }
+            var ortho = current.ortho();
+            if (ortho != null) {
+                // 正交线要多说两句：拐了几个 90° 弯、为了凑够半径把端点推出去多少格。
+                add(lines, colors, String.format(Loc.s("正交 %d 个 90° 弯 · 端点外推 %.0f 格", "Orthogonal: %d right-angle bends · ends pushed %.0f blocks"),
+                        ortho.bends(), ortho.pushed()), ortho.pushed() > 0.5 ? CAUTION : TEXT);
             }
             if (st != null) {
                 // 点的 Y 钉住之后，设计坡是玩家自己定的，可能顶到限坡以上：两个坡分开标。
@@ -358,6 +380,7 @@ public final class PlannerRenderer {
         int ty = y + 7;
         g.text(font, Loc.s("铁路选线", "Rail Planner"), tx, ty, TITLE);
         g.text(font, Planner.isActive() ? Loc.s("● 规划中", "● Planning") : Loc.s("○ 只读", "○ Read-only"), tx + 62, ty, Planner.isActive() ? ACCENT : DIM);
+        drawOrthoChip(g, x, y, w, current);
         ty += lineH + 3;
         for (int i = 0; i < lines.size(); i++) {
             g.text(font, lines.get(i), tx, ty, colors.get(i));
@@ -769,6 +792,52 @@ public final class PlannerRenderer {
     }
 
     /** 鼠标是不是停在那行线名上（双击它改名字和颜色）。 */
+    /**
+     * 面板标题行右端那个「正交化」小按钮：点一下把这条线在正交与自由斜线之间切换。
+     *
+     * <p>只画在展开的面板上；折叠状态没地方放，展开再点（折叠那一行只报数）。</p>
+     */
+    private static void drawOrthoChip(GuiGraphicsExtractor g, int x, int y, int w, RailRoute current) {
+        if (current == null) {
+            return;
+        }
+        Font font = Minecraft.getInstance().font;
+        String text = current.orthogonal
+                ? Loc.s("正交化：开", "Orthogonal: on")
+                : Loc.s("正交化：关", "Orthogonal: off");
+        int cw = font.width(text) + 10;
+        int cx = x + w - cw - 5;
+        int cy = y + 4;
+        chipX = cx;
+        chipY = cy;
+        chipW = cw;
+        chipH = 12;
+        chipRoute = current;
+        g.fill(cx, cy, cx + cw, cy + 12, current.orthogonal ? 0xFF1D3B2B : 0xFF23282F);
+        g.fill(cx, cy, cx + cw, cy + 1, current.orthogonal ? ACCENT : 0xFF4A5058);
+        g.text(font, text, cx + 5, cy + 2, current.orthogonal ? ACCENT : DIM);
+    }
+
+    /** 鼠标是不是落在「正交化」那个小按钮上。 */
+    public static RailRoute hitChip(double mx, double my) {
+        if (chipRoute == null) {
+            return null;
+        }
+        boolean inside = mx >= chipX && mx <= chipX + chipW && my >= chipY && my <= chipY + chipH;
+        return inside ? chipRoute : null;
+    }
+
+    /** 鼠标是不是落在地图上某个线名标签上（叠在一起时取最后画的那个）。 */
+    public static RailRoute hitLabel(double mx, double my) {
+        for (int i = LABELS.size() - 1; i >= 0; i--) {
+            NameLabel l = LABELS.get(i);
+            if (mx >= l.x() && mx <= l.x() + l.w() && my >= l.y() && my <= l.y() + l.h()) {
+                return l.route();
+            }
+        }
+        return null;
+    }
+
     public static boolean hitName(double mx, double my) {
         return nameRoute != null && nameW > 0
                 && mx >= nameX - 2 && mx <= nameX + nameW + 2
