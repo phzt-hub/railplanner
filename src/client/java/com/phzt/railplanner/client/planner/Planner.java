@@ -786,32 +786,53 @@ public final class Planner {
             return;
         }
         Anchor a = current.anchors.get(index);
-        Anchor next = a;
+        int y = a.y();
         String text = yText.trim();
         if (!text.isEmpty() && !"-".equals(text)) {
             try {
-                int value = Math.max(-1024, Math.min(1024, Integer.parseInt(text)));
-                if (value != a.y()) {
-                    next = next.withY(value);
-                }
+                y = Integer.parseInt(text);
             } catch (NumberFormatException ignored) {
                 // 不是整数就当没填
             }
         }
-        String trimmed = name.trim();
+        applyAnchorEdit(current, index, y, name, kind);
+    }
+
+    /**
+     * 改一个点的 Y / 名字 / 类型。地图里的点位框和世界里的编辑框都走这一条，
+     * 免得两处各写一套夹值、trim 和日志。
+     *
+     * @return 真改动了才 true（值全一样就不落盘、不推同步）
+     */
+    public static boolean applyAnchorEdit(RailRoute route, int index, int y, String name, PointKind kind) {
+        if (route == null || index < 0 || index >= route.anchors.size()) {
+            return false;
+        }
+        Anchor a = route.anchors.get(index);
+        Anchor next = a;
+        int value = Math.max(-1024, Math.min(1024, y));
+        if (value != a.y()) {
+            next = next.withY(value);
+        }
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.length() > 24) {
+            trimmed = trimmed.substring(0, 24);
+        }
         if (!trimmed.equals(a.name())) {
             next = next.withName(trimmed);
         }
-        if (kind != a.kind()) {
+        if (kind != null && kind != a.kind()) {
             next = next.withKind(kind);
         }
         if (next.equals(a)) {
-            return;
+            return false;
         }
-        current.anchors.set(index, next);
+        route.anchors.set(index, next);
+        route.invalidate();
         markDirty();
         LOG.info("点 {}：Y {} · 名字「{}」· {}（原 {} / {} / {}）", index + 1, next.y(), next.name(),
                 next.kind().label, a.y(), a.name().isEmpty() ? "没名字" : a.name(), a.kind().label);
+        return true;
     }
 
     /** 双击面板上那行线名：改名字和颜色。 */

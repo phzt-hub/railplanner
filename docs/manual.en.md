@@ -40,7 +40,7 @@ Technically it reads **the height data Xaero's World Map has already stored**: i
 
 1. Minecraft **26.3** + **Fabric Loader 0.19.5** (Java 25 runtime)
 2. The client must have **Fabric API** and **Xaero's World Map ≥ 1.47**
-3. Drop `railplanner-0.8.1.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
+3. Drop `railplanner-0.8.2.jar` into the client's `mods/`; Mod Menu is optional (it works without it — press `U` for settings)
 4. **The server side is optional**: drop the same jar into the server's `mods/`, no config changes. With it installed, data is stored per UUID on the server and comes back automatically when you change machines; without it, it is purely local, exactly like 0.5.0. The server **does not need Xaero** and needs no client mods either
 
 ### Use
@@ -122,6 +122,7 @@ With the map closed there is a shorter version of the same bar in the top-left o
 | Left click on the map | — | Add an anchor (snapped to the block grid) | Planning mode |
 | Left-drag a vertex | — | Move that point | Planning mode |
 | Right-click a vertex | — | Delete this one point (**the only way to delete a middle point**) | Planning mode |
+| Main hand on the trigger item, right-click a point | — | Edit that point's **Y / name / kind** right in the world: the same box, firing only when the crosshair is on its pin (see [§6.5](#65-editing-a-point-in-the-world)) | In the world, with the map closed |
 | Left click on an existing line | — | Click within 6 pixels of a line to pick that line up and keep editing it | Planning mode |
 | `Ctrl` + left-click on a line | — | **Insert** a point between two existing ones, snapped onto the nearest point of the line (shape unchanged) | Planning mode |
 | Double-click a vertex | — | Change that point's **Y / name / kind**: three rows, `Tab` moves, `←` `→` cycles the kind, Enter saves, Esc cancels | Planning mode |
@@ -264,6 +265,43 @@ An unnamed point shows as "点 N"; a named one shows its name as the first toolt
 
 New lines don't need you to pick a colour: they take one from the 7-colour palette in creation order, and whatever you change sticks to that line (it is saved and synced).
 
+### 6.5 Editing a point in the world
+
+The same box, reached a second way: **hold the trigger item (rails by default) in your main hand, put the crosshair on a point's vertical pin in the world, right-click.**
+
+A point counts as hit when the crosshair comes within 0.8 blocks of its pin and the pin is no more than 6 blocks along your line of sight; when several points are that close, the nearest along the sight line wins. A hit first draws a **white box** around that point, so you know which one you are about to edit; miss, and it is an ordinary right-click — blocks are placed, rails are laid. With anything else in your hand this never fires at all.
+
+![Aiming at a point with rails: the white box wraps the flag on top of the pin](poi-world.png)
+
+Inside it is the same three rows, with buttons around them instead of key cycling:
+
+| Row | How |
+|---|---|
+| `Y` | digits and Backspace; fully selected on open, so the first digit replaces the old value |
+| `Name` | just type (CJK through your IME or `Ctrl+V`), up to 24 characters |
+| `Type` | click to cycle to the next one (six kinds, see [§6.4](#64-point-names-point-kinds-and-line-colours)) |
+
+![The box a right-click opens: Y / name / kind, same meaning as in the map](poi-editor.png)
+
+`Tab` moves between `Y` and `Name`; `Enter` or "Save" writes it; "Cancel" or `Esc` leaves the data alone. Saving goes down the **same path** as the map's box (`Planner.applyAnchorEdit` + `saveNow`): the file is written and the change synced immediately, so a change made in the world can never be missing from the map.
+
+**Three things have to be true** (miss one and the right-click is just a right-click):
+
+| Requirement | Where |
+|---|---|
+| "Right-click edit（拿物品右键改点）" is on | left column of the settings page, config `poiEdit`, on by default |
+| "Show points（显示已选的点）" is on | the points are not drawn at all, so there is nothing to hit |
+| "Disable all hotkeys（停用全部快捷键）" is off | that switch stops every mouse action of this mod at once |
+
+The trigger item is configurable too: type an item id into the "Item（触发物品）" field in the left column (`minecraft:rail`, `minecraft:stick`, ...); without a namespace `minecraft:` is prepended, and it is written to disk when you leave the settings page.
+
+Some edges:
+
+- **Only points that are drawn can be clicked**: the map closed, the 3D line on, and points on the current route — the same condition §14 uses for drawing points
+- **It edits the point, it does not move it**: there is no x/z in the box, so a right-click cannot drag a point out of place
+- The hit test is against the vertical **pin** (the same one §14 draws), so you aim at the pin, not at the block on the ground
+- If the route is replaced by a sync from another machine between opening the box and saving (the point's x/z moved), that save is dropped — better to lose this edit than to write it onto the wrong point
+
 ---
 
 ## 7. Settings page, automatic update checks and auto-install
@@ -283,6 +321,8 @@ The screen is two columns plus a bottom bar: the left column is **3D line in the
 | Range: 64 / 128 / 256 / 512 / 1024 blocks（显示距离） | Click to cycle; lines, faces and points beyond this distance are not drawn |
 | Disable all hotkeys: on / off（停用全部快捷键：开 / 关） | This mod's keys and mouse actions **stop together** (so nothing fights another mod over a key). While it is off, only the "Open settings page（打开设置页）" key still works — otherwise you could never switch it back. The state is written to the config and survives a restart |
 | Sync to server: on / off（同步到服务端：开 / 关） | Off means local only, **not a single sync request is sent**; with the server mod not installed this row is just a wish (see §15) |
+| Right-click edit: on / off（拿物品右键改点：开 / 关） | Hold the item below, aim at a point in the world and right-click to open the same edit box (see [§6.5](#65-editing-a-point-in-the-world)); on by default |
+| Item: `minecraft:rail`（触发物品） | The trigger item's id; without a namespace `minecraft:` is prepended. Written to disk when you leave this page |
 
 | Right column | What it does |
 |---|---|
@@ -341,6 +381,8 @@ There is exactly one request, `GET https://api.github.com/repos/phzt-hub/railpla
   "worldSurfaces": true,
   "worldAnchors": true,
   "anchorLock": false,
+  "poiEdit": true,
+  "poiEditItem": "minecraft:rail",
   "hotkeysOff": false,
   "syncEnabled": true,
   "noModNotified": [],
@@ -362,6 +404,8 @@ There is exactly one request, `GET https://api.github.com/repos/phzt-hub/railpla
 | `worldSurfaces` | boolean | ✅ | Draw tunnels/bridges as translucent faces (`true`, default) or as posts (`false`) |
 | `worldAnchors` | boolean | ✅ | Draw the placed points in the world while editing; on by default |
 | `anchorLock` | boolean | ✅ | Lock the placed points, same as pressing `L`; off by default |
+| `poiEdit` | boolean | ✅ | Master switch for editing a point with a right-click while holding the trigger item; on by default |
+| `poiEditItem` | string | ✅ | The trigger item's id; empty means `minecraft:rail`, and a missing namespace gets `minecraft:` prepended |
 | `hotkeysOff` | boolean | ✅ | Disable all of this mod's hotkeys and mouse actions (conflict avoidance); this is what that switch on the settings page writes |
 | `syncEnabled` | boolean | ✅ | Master switch for server sync; `false` = local only, not a single sync request is sent |
 | `noModNotified` | string array | ✅ | World identities already told "the server mod is not installed"; delete an entry and that server is told once more |
@@ -613,7 +657,7 @@ Press `H` to collapse it. Since 0.3.0 the draw order was moved after Xaero, so t
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.1.jar`.
+Output: `build/libs/railplanner-0.8.2.jar`.
 
 ### Self-checks and debugging
 
@@ -674,6 +718,8 @@ While editing, every point gets one of these pins — green at the start, red at
 
 ![Placed points](world-lines.png)
 
+These pins are not just decoration: hold the trigger item, put the crosshair on one and right-click, and the box for that point opens (see [§6.5](#65-editing-a-point-in-the-world)) — no trip back to the map.
+
 How far apart the two lines are is exactly where the panel's "tun 612 · br 15" numbers come from — **the same data, the same algorithm**, not a second calculation.
 
 If you'd rather not see the faces: switch "tunnel/bridge（隧道/桥）" in the left column of the settings page to "posts（立柱）", or set `worldSurfaces: false` in the config by hand. Posts are only left for the scattered stretches that don't differ enough to be judged a tunnel or a bridge — there are no faces to draw there.
@@ -706,6 +752,7 @@ Once a route is drawn, the last thing you want is a slip of the hand grabbing a 
 - left-dragging a vertex no longer moves it and the point stays where it is; a line pops up at the bottom centre of the map saying "point locked, dragging won't move it again（点已锁定，拖动不会再移动）" (the world HUD is hidden behind the map, so the map draws its own line, which disappears by itself after 2.5 seconds)
 - the hint in the bottom-right of the map panel turns into "`L` points locked（点已锁）" in orange, so you can see at a glance whether it's locked
 - clicking empty space still adds points, right-click delete and `Delete` undo still work — what's locked is "drag", not "edit"
+- editing a point with the trigger item ([§6.5](#65-editing-a-point-in-the-world)) is unaffected for the same reason
 - the world status bar gains "points locked（点已锁）", and the points themselves are drawn one shade darker
 - "Lock points（锁住已选的点）" in the right column of the settings page is the same switch
 

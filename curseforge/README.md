@@ -8,7 +8,7 @@
 | Summary | `summary.txt`（231 字符，一句话讲清「在地图上选线 → 得到能铺的线」） |
 | Description | `description.md` 全文，从 `# Rail Planner` 到最后一行的 MIT（中间 `---` 之后是中文对照，英文用户滚到那儿也无所谓，中文用户正好接上） |
 | Description（贴用版） | `RailPlanner-CurseForge-Description.docx` —— 打开、翻到第 2 页、全选、Ctrl+V，格式不用再调。第 1 页是说明，别复制 |
-| Changelog（文件页） | `changelog-0.8.1.md` |
+| Changelog（文件页） | `changelog-0.8.2.md` |
 | Category | Map and Information（最贴）。CF 只让选一个主分类 |
 | License | MIT（CF 内置列表里有，不要选 Custom） |
 | Game version | 26.3 |
@@ -67,12 +67,12 @@ python3 tools/make-cf-docx.py --no-images   # 只出文字，约 46 KB
 ## 发布前核对
 
 ```sh
-ls -l build/libs/railplanner-0.8.1.jar
-md5sum build/libs/railplanner-0.8.1.jar
-unzip -l build/libs/railplanner-0.8.1.jar | grep -E 'fabric.mod.json|icon.png'
+ls -l build/libs/railplanner-0.8.2.jar
+md5sum build/libs/railplanner-0.8.2.jar
+unzip -l build/libs/railplanner-0.8.2.jar | grep -E 'fabric.mod.json|icon.png'
 ```
 
-- jar 名与 `gradle.properties` 的版本一致（0.8.1）
+- jar 名与 `gradle.properties` 的版本一致（0.8.2）
 - 上传的是 `build/libs/` 里那个**没被 `-sources` 污染的**主 jar
 - 文件页的「Game version」勾 26.3，「Mod loader」勾 Fabric，两样都勾错会直接被玩家下载到崩溃
 
@@ -85,5 +85,5 @@ unzip -l build/libs/railplanner-0.8.1.jar | grep -E 'fabric.mod.json|icon.png'
 ## 改哪里
 
 - 改语气/加卖点 → `description.md`，英文段在前、中文段在 `---` 之后
-- 加新版本 → 复制一份 `changelog-0.8.1.md` 改名，按 git log 提炼（`git log --oneline <上个 tag>..HEAD`）
+- 加新版本 → 复制一份 `changelog-0.8.2.md` 改名，按 git log 提炼（`git log --oneline <上个 tag>..HEAD`）
 - 改一句话简介 → `summary.txt`，CF 的 Summary 框不长，超了会被截断

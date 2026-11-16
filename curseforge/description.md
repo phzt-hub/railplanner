@@ -28,6 +28,8 @@ Your time is yours to waste. But this thing can genuinely turn a weekend into a 
 
 **Points with identity.** Double-click a vertex for three fields: Y, name, and type — plain, station, curve control point, tunnel portal, bridge, signal. Each type gets its own glyph, on the map and in the world. Double-click the route name on the panel to rename the line and recolour it: 12-swatch palette, hue bar, or raw RGB.
 
+**Edit a point in the world, too.** With the trigger item in hand (rails by default) and the crosshair on a point's vertical pin, a right-click opens the very same three-field box — no need to open the map just to fix one elevation. The item and an on/off switch live in the left column of the settings page.
+
 **Insert without reshaping.** Hold Ctrl and click on the line to insert a point between two existing ones. It snaps onto the curve, so the alignment stays exactly where it was.
 
 **Optional server sync.** Drop the same jar into the server's `mods/` folder and every player's lines are stored server-side, per UUID, invisible to each other. Your local copy stays. When both sides changed the same line, the UI asks line by line which copy to keep. Reinstalling the client or switching machines no longer loses your plans.
@@ -48,7 +50,7 @@ The gallery walks through the whole loop: picking points on the map with the pan
 
 1. Install Fabric Loader for Minecraft 26.3 and put Fabric API in `mods/`.
 2. Put Xaero's World Map 1.47.x in `mods/`.
-3. Put `railplanner-0.8.1.jar` in `mods/`.
+3. Put `railplanner-0.8.2.jar` in `mods/`.
 4. Start the game, enter a world, press `B`.
 
 For a server, copy the same jar into the server's `mods/` and restart. Nothing to configure. Players without Rail Planner can still join; only the sync stops being available to them.
@@ -60,6 +62,7 @@ For a server, copy the same jar into the server's `mods/` and restart. Nothing t
 - Right click — delete a point
 - Ctrl + left click on the line — insert a point
 - Double-click a vertex — edit Y, name, type
+- Hold the trigger item (rails) + right-click a point — edit that point in the world
 - Double-click the route name — rename, recolour
 - `Enter` — finish and save
 - `Delete` — undo the last point
@@ -129,6 +132,8 @@ Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟
 
 **点有身份。** 双击顶点三行框：Y、名字、类型（普通点、车站、弯道控制点、隧道口、桥梁、信号机），每种类型在地图上和世界里各画一种形状。双击面板上那行线名，可以改线名和颜色：12 色色板、色相条、或者直接填 RGB。
 
+**点也能在世界里直接改。** 主手拿触发物品（默认铁轨），准星对准点位那根竖针右键，弹出的还是那个三行框——为了改一个标高不用再开地图。物品和开关都在设置页左栏。
+
 **插点不破坏线形。** 按住 Ctrl 点那条线，新点插进光标所在的那一段，位置吸附到线上，线形一格都不会变。
 
 **服务端同步是可选的。** 同一个 jar 装进服务端的 `mods/`，每个玩家的线按 UUID 存在服务端，互相看不到，本地也照样留一份。两边都改过同一条线时，界面逐条问你要留哪边。换机器、重装客户端都不丢。
@@ -137,13 +142,13 @@ Rail Planner 挂在 Xaero's World Map 里。你点几个点，它把这些点拟
 
 ## 安装
 
-**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.8.1.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
+**客户端**：Minecraft 26.3 + Fabric Loader 0.19.5+ + Java 25，`mods/` 里放 Fabric API、Xaero's World Map 1.47.x 和 `railplanner-0.8.2.jar`，进世界按 `B`。Mod Menu 可选，不装就按 `U` 开设置页。
 
 **服务端（可选）**：同一个 jar 丢进服务端 `mods/`，不用改配置。服务端只要 Fabric API，不需要 Xaero，也不需要客户端模组；没装的玩家照样能进服，只是没有同步。
 
 ## 默认按键
 
-`B` 开图规划 / 规划↔只读 · 左键加点、拖顶点 · 右键删点 · Ctrl+左键点在线上插点 · 双击顶点改 Y/名字/类型 · 双击线名改名改色 · `Enter` 完成存盘 · `Delete` 撤销 · `R` / `Shift+R` 半径 ×1.25 / ×0.8 · `[` `]` 限坡 ∓1%（`Shift` 5%）· `J` 自动选线 · `H` 折叠面板 · `U` 设置页 · `V` 3D 线开关 · `X` 穿山 · `L` 锁点。全部可在 选项 → 控制 → 按键绑定 → 铁路选线 里改。
+`B` 开图规划 / 规划↔只读 · 左键加点、拖顶点 · 右键删点 · Ctrl+左键点在线上插点 · 双击顶点改 Y/名字/类型 · 双击线名改名改色 · 拿物品右键点位改点 · `Enter` 完成存盘 · `Delete` 撤销 · `R` / `Shift+R` 半径 ×1.25 / ×0.8 · `[` `]` 限坡 ∓1%（`Shift` 5%）· `J` 自动选线 · `H` 折叠面板 · `U` 设置页 · `V` 3D 线开关 · `X` 穿山 · `L` 锁点。全部可在 选项 → 控制 → 按键绑定 → 铁路选线 里改。
 
 ## 已知限制
 

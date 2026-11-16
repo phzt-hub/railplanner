@@ -192,7 +192,7 @@ p.add_run("其余字段不在本文里，另贴：").bold = True
 extra = [
     ("Project name", "Rail Planner"),
     ("Summary", "见 curseforge/summary.txt（231 字符，一句话：在地图上选线 → 得到能铺的线）"),
-    ("Changelog", "见 curseforge/changelog-0.8.1.md，贴在文件页的 Changelog 里"),
+    ("Changelog", "见 curseforge/changelog-0.8.2.md，贴在文件页的 Changelog 里"),
     ("Category", "Map and Information"),
     ("Gallery", "七张图按顺序上传，与本文「Screenshots」里那 7 张同序同标题；本文里的图是本地副本，不是外链（CF 会剥掉正文里的 raw.githubusercontent 图片，画廊单独传不受影响）"),
 ]

@@ -22,13 +22,14 @@ Since 0.6.0 it is **two-sided**: drop the same jar on the server and the server 
 - **Two-sided**: without the server mod it's purely local; with it the server keeps one copy per UUID while the local copy stays, and when both sides changed, it asks you route by route which side to keep
 - The client **must have Xaero's World Map ≥ 1.47**; the server needs only Fabric API, not Xaero
 - No Xaero code is modified or repackaged — the mod only hooks into its map screen with a mixin
-- Current version **0.8.1**
+- **Points can be edited in the world too**: with rails (or any item you configure) in your main hand, right-click a point's pin and the same Y / name / kind box opens — no trip back to the map just to fix one elevation
+- Current version **0.8.2**
 
 ![Picking a route on the map](docs/screenshot.png)
 
 ## Install
 
-**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.8.1.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
+**Client**: Fabric 26.3 + **Fabric API** + **Xaero's World Map ≥ 1.47**; drop `railplanner-0.8.2.jar` into `mods/`. Mod Menu is optional (it works without it — press `U` for the settings page).
 
 **Server (optional)**: drop the same jar into the server's `mods/`; nothing to configure. The server only wants Fabric API — **no Xaero, and no client mods**. Without it you can still join; the data just stays on your machine.
 
@@ -42,6 +43,7 @@ Enter a world and press `B` to open the map in planning mode; a few left clicks 
 | Left / right click | Add a point, drag a vertex / delete a point |
 | Ctrl + left-click on a line | Insert a point between two existing ones (snapped onto the line, shape unchanged) |
 | Double-click a vertex | Change that point's Y / name / kind: Tab moves rows, ← → cycles the kind, Enter confirms |
+| Main hand on the trigger item, right-click a point | Edit that point's Y / name / kind in the world (the same box, see §6.5) |
 | Double-click the panel's name row | Change this line's name and colour (swatches / hue bar / RGB) |
 | `Enter` · `Delete` | Finish and save · undo the last point |
 | `R` · `Shift+R` | Curve radius ×1.25 · ×0.8 (4–200 blocks) |
@@ -73,6 +75,7 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 - [Two-sided sync](docs/manual.en.md#15-two-sided-sync-the-server-copy) — what changes with/without the server mod, per-UUID isolation, same IP on a different port is the same server, how to pick a conflict
 - [Auto-update](docs/manual.en.md#16-auto-update-how-far-hot-swapping-can-actually-go) — manual download, sha256 verification, in-place replace; you restart from the launcher
 - [Sampling point Y](docs/manual.en.md#63-sampling-point-y-defaults-to-the-highest-block) — double-click to set an elevation, how the profile gets pinned, what an impossible grade looks like
+- [Editing a point in the world](docs/manual.en.md#65-editing-a-point-in-the-world) — the item to hold, how close counts as a hit, the three preconditions, what the hit test measures
 - [Server-side auto-update](docs/manual.en.md#17-server-side-auto-update-mcdr-plugin) — the MCDR plugin: swap the jar, restart by switch
 - [Known limitations](docs/manual.en.md#12-known-limitations)
 
@@ -85,7 +88,7 @@ Collapsed, the panel looks like this; a grade over the limit and too high a tunn
 ./tools/make-icon.py       # only when changing the icon: regenerates assets/railplanner/icon.png (128x128, needs Pillow + numpy)
 ```
 
-Output: `build/libs/railplanner-0.8.1.jar`.
+Output: `build/libs/railplanner-0.8.2.jar`.
 
 Self-checks: `./tools/geom-check.sh` (curve parameters and rasterisation continuity), `./tools/vertical-check.sh` (points pinned, grade limit, straight-line fallback), `./tools/version-check.sh` (version comparison). None of them starts the game.
 

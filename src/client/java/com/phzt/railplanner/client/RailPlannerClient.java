@@ -7,9 +7,12 @@ import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.render.WorldHud;
 import com.phzt.railplanner.client.sync.SyncClient;
 import com.phzt.railplanner.client.update.UpdateChecker;
+import com.phzt.railplanner.client.world.PointPick;
 import com.phzt.railplanner.sync.Payloads;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -78,6 +81,9 @@ public final class RailPlannerClient implements ClientModInitializer {
         }
         RailConfig.load();
         UpdateChecker.init();
+        // 世界里拿触发物品（默认普通铁轨）右键点中一个点 → 弹编辑框；没命中就放行，照常放方块。
+        UseBlockCallback.EVENT.register((player, level, hand, hit) -> PointPick.onUse(level, player, hand));
+        UseItemCallback.EVENT.register((player, level, hand) -> PointPick.onUse(level, player, hand));
         // 同步：服务端回包的接收器 + 进退服两个钩子
         ClientPlayNetworking.registerGlobalReceiver(Payloads.S2C.TYPE, SyncClient::handle);
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> SyncClient.onJoin(client));

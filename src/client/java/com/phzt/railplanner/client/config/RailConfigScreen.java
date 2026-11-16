@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
@@ -43,6 +44,9 @@ public class RailConfigScreen extends Screen {
     private int headerY;
     private Button installButton;
     private Button restartButton;
+    /** 触发物品那一行，输入框右边留出来画标题用。 */
+    private EditBox poiItemField;
+    private int poiRow;
 
     public RailConfigScreen(Screen parent) {
         super(Component.translatable("railplanner.config.title"));
@@ -99,6 +103,25 @@ public class RailConfigScreen extends Screen {
             LOG.info("世界里的已选点 → {}", cfg.worldAnchors ? "开" : "关");
             SyncClient.markDirty();
         }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        this.addRenderableWidget(Button.builder(labelPoiEdit(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.poiEdit = !cfg.poiEdit;
+            cfg.save();
+            b.setMessage(labelPoiEdit());
+            LOG.info("拿物品右键改点 → {}", cfg.poiEdit ? "开" : "关");
+        }).bounds(leftX, left, colW, 20).build());
+        left += ROW;
+
+        // 「触发物品」那一行：左边一行小字，右边一个输入框（默认 minecraft:rail）
+        this.poiRow = left;
+        this.poiItemField = new EditBox(this.font, leftX + 64, left + 1, Math.max(40, colW - 64), 18,
+                Component.literal("minecraft:rail"));
+        this.poiItemField.setMaxLength(64);
+        this.poiItemField.setValue(RailConfig.get().poiEditItem);
+        this.poiItemField.setResponder(value -> RailConfig.get().poiEditItem = value);
+        this.addRenderableWidget(this.poiItemField);
         left += ROW;
 
         this.addRenderableWidget(Button.builder(labelRange(), b -> {
@@ -223,6 +246,7 @@ public class RailConfigScreen extends Screen {
         g.centeredText(this.font, this.getTitle(), this.width / 2, 24, 0xFFFFFFFF);
         g.text(this.font, Component.translatable("railplanner.config.col_world"), leftX, headerY, HEADER);
         g.text(this.font, Component.translatable("railplanner.config.col_edit"), rightX, headerY, HEADER);
+        g.text(this.font, Component.translatable("railplanner.config.poi_item"), leftX, poiRow + 5, HEADER);
 
         int text = 0xFFE6E6E6;
         int y = infoTop;
@@ -270,7 +294,9 @@ public class RailConfigScreen extends Screen {
                     0xFF8A949E);
         }
 
-        if (this.height >= 320) {
+        // 左栏多了「右键改点 / 触发物品」两行之后，信息块被顶到最底下：底边这行居中提示
+        // 会压在「Planner: B」上，挤不下就干脆不画。
+        if (this.height >= 320 && infoTop + 72 < this.height - 26) {
             Component note = Component.translatable("railplanner.config.note");
             g.text(this.font, note, this.width / 2 - this.font.width(note) / 2, this.height - 26, 0xFF8A949E);
         }
@@ -307,6 +333,11 @@ public class RailConfigScreen extends Screen {
     private static Component labelAnchors() {
         return Component.translatable(RailConfig.get().worldAnchors
                 ? "railplanner.config.world_anchors_on" : "railplanner.config.world_anchors_off");
+    }
+
+    private static Component labelPoiEdit() {
+        return Component.translatable(RailConfig.get().poiEdit
+                ? "railplanner.config.poi_edit_on" : "railplanner.config.poi_edit_off");
     }
 
     private static Component labelRange() {
@@ -399,6 +430,13 @@ public class RailConfigScreen extends Screen {
             case CHECKING -> 0xFF9AA4AE;
             default -> 0xFF69F0AE;
         };
+    }
+
+    /** 触发物品是随手打的字，离开设置页时落一次盘就够，不必每敲一个字母写一遍。 */
+    @Override
+    public void removed() {
+        super.removed();
+        RailConfig.save();
     }
 
     @Override

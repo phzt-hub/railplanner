@@ -124,8 +124,8 @@ public final class RouteGizmos {
         }
         emitLines(al, path, design, ground, n, route.color, config, camX, camZ, range2, onTop);
 
-        // 正在编辑的那条线才画点：完成之后那一条是拿来照着修的，点不用再刷存在感。
-        if (config.worldAnchors && Planner.current() != null) {
+        // 点不只给「正在画」看：拿着触发物品右键点它就能改参数，所以画完的那条线也得留着点。
+        if (config.worldAnchors) {
             emitAnchors(route, path, design, ground, n, camX, camZ, range2, onTop);
         }
     }
@@ -144,7 +144,11 @@ public final class RouteGizmos {
             return;
         }
         boolean locked = RailConfig.get().anchorLock;
+        int aimed = PointPick.aimed(route);
         int labels = 0;
+        // 每个点那面旗（针顶的小方块）在哪个高度：准星框要套在旗上，不是套在地面那个方块上。
+        int[] flagY = new int[count];
+        java.util.Arrays.fill(flagY, Integer.MIN_VALUE);
         for (int i = 0; i < count; i++) {
             Anchor a = anchors.get(i);
             double cx = a.x() + 0.5;
@@ -177,7 +181,9 @@ public final class RouteGizmos {
             if (onTop) {
                 pin.setAlwaysOnTop();
             }
-            GizmoProperties flag = Gizmos.cuboid(new BlockPos(a.x(), (int) Math.floor(high + 1.0), a.z()),
+            int flagTop = (int) Math.floor(high + 1.0);
+            flagY[i] = flagTop;
+            GizmoProperties flag = Gizmos.cuboid(new BlockPos(a.x(), flagTop, a.z()),
                     GizmoStyle.stroke(color));
             if (onTop) {
                 flag.setAlwaysOnTop();
@@ -191,6 +197,16 @@ public final class RouteGizmos {
                 if (onTop) {
                     text.setAlwaysOnTop();
                 }
+            }
+        }
+        // 准星指着的那个点套一个白框：右键前能看出「现在松手改的是它」。框套在那面旗上——
+        // 套在地面方块上的话，人在平视针顶时框会跑到脚底下去，等于没标。
+        if (aimed >= 0 && aimed < count && flagY[aimed] != Integer.MIN_VALUE) {
+            Anchor picked = anchors.get(aimed);
+            GizmoProperties box = Gizmos.cuboid(new BlockPos(picked.x(), flagY[aimed], picked.z()),
+                    GizmoStyle.stroke(0xFFFFFFFF));
+            if (onTop) {
+                box.setAlwaysOnTop();
             }
         }
     }

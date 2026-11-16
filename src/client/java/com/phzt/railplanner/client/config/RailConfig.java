@@ -48,6 +48,13 @@ public final class RailConfig {
     public boolean worldAnchors = true;
     /** 锁住已选的点：左键按住不再拖动，免得误触把线扯歪（按 L 切换）。 */
     public boolean anchorLock;
+    /**
+     * 世界里拿着触发物品右键点中一个点，直接弹出编辑框改它的 Y / 名字 / 类型。
+     * 关掉之后右键就只是原版的「放方块」。
+     */
+    public boolean poiEdit = true;
+    /** 触发编辑框的物品 id，默认普通铁轨；写错只是不触发，不会崩。 */
+    public String poiEditItem = "minecraft:rail";
 
     /**
      * 停用本模组的全部快捷键与鼠标操作（防和其他模组抢键）。
@@ -113,7 +120,19 @@ public final class RailConfig {
         if (noModNotified == null) {
             noModNotified = new ArrayList<>();
         }
+        if (poiEditItem == null || poiEditItem.isBlank()) {
+            poiEditItem = "minecraft:rail";
+        }
         return this;
+    }
+
+    /** 规整过的触发物品 id：空着算普通铁轨，没写命名空间算 minecraft。 */
+    public String poiItemId() {
+        String value = poiEditItem == null ? "" : poiEditItem.trim().toLowerCase(java.util.Locale.ROOT);
+        if (value.isEmpty()) {
+            return "minecraft:rail";
+        }
+        return value.indexOf(':') >= 0 ? value : "minecraft:" + value;
     }
 
     public static void save() {
