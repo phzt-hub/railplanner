@@ -3,6 +3,8 @@ Rail Planner 服务端自动更新插件（MCDR）
 
 每 check_interval_minutes 分钟查一次更新：默认查内网发布站 railplannerrelease.phzt.lan 的
 release 通道（source=lan），也可以在 config.json 里改成 source=github 去查 phzt-hub/railplanner。
+channel=debug 时改查同一站点的 debug 通道：那边的 tag 恒为 v0.9.1-debug，同一个版本号会连发
+好几个包，所以先后不比 tag，而是比包名尾巴上的构建时间戳（见 release_key）。
 发现比 mods/ 里的 jar 新，就下载、按站点给的 sha256 与字节数校验、把旧 jar 挪进备份目录、
 换上新 jar，然后（auto_restart 开着时）重启服务端。两个源不自动互退：内网站挂了就报错不动手，
 不会悄悄转去公网装包（装了什么、从哪儿装的，日志里必须一眼能看出来）。
@@ -29,7 +31,7 @@ from mcdreforged.api.all import *
 
 PLUGIN_ID = 'railplanner_updater'
 PREFIX = '!!railupdate'
-USER_AGENT = 'RailPlannerUpdater/1.1.2'
+USER_AGENT = 'RailPlannerUpdater/1.1.3'
 API_URL = 'https://api.github.com/repos/{repo}/releases?per_page=10'
 LAN_LATEST_URL = '{base}/{channel}/latest.json'
 SOURCES = ('lan', 'github')
@@ -129,6 +131,19 @@ def is_newer(candidate: str, current: Optional[str]) -> bool:
     if current is None:
         return True
     return version_key(candidate) > version_key(current)
+
+
+def release_key(version: str, asset_name: str) -> Tuple:
+    """同一版本号连发多包时，先后看包名里的构建时间戳。
+
+    debug 通道的 tag 恒为 v0.9.1-debug：版本号本身不带时间，只有资产名
+    （railplanner-0.9.1-debug-202611161605.jar）带。把时间戳顶进 version_key
+    的第三项，才能和 mods/ 里装着的同名 jar 判出先后；否则只会一直报「已是最新」。
+    版本号自己带时间戳时（GitHub 源的可能情形）保留原值。
+    """
+    key = version_key(version)
+    m = BUILD_STAMP_RE.search(asset_name or '')
+    return key[:2] + ((int(m.group(1)) if m else 0) or key[2],)
 
 
 # ---------------------------------------------------------------- 查 GitHub
@@ -291,8 +306,15 @@ def check_and_update(server: PluginServerInterface, manual: bool = False) -> str
             return _last_result
     rel, asset = found
     latest = (rel.get('tag_name') or '').lstrip('vV')
+    asset_name = (asset.get('name') or '').strip()
+    # debug 通道的 tag 一直是 v0.9.1-debug，同一版本号会连发好几个包：
+    # 只比 tag 永远判「已是最新」，得把包名里的构建时间一并比。
+    if (cfg.channel or 'release').strip().lower() == 'debug':
+        newer = current is None or release_key(latest, asset_name) > version_key(current)
+    else:
+        newer = is_newer(latest, current)
 
-    if not is_newer(latest, current):
+    if not newer:
         _last_result = '已是最新：{}'.format(current or '（没有 jar）')
         return _last_result
 
@@ -326,7 +348,13 @@ def check_and_update(server: PluginServerInterface, manual: bool = False) -> str
         except OSError as e:
             server.logger.warning('[RailPlanner] 删旧 jar 失败：{}'.format(e))
 
-    final = mods / 'railplanner-{}.jar'.format(latest)
+    # 落地保留站点给的文件名（debug 包带 -<yyyymmddHHMM>）：下次读回来的 jar
+    # 名自带时间戳，才判得出「已是最新」，不会每轮重下同一个包。外部 JSON 里的
+    # 名字只取 basename，且必须仍是本体 jar 的口径，否则退回按版本号起名。
+    safe_name = Path(asset_name).name
+    if not JAR_RE.match(safe_name) or NOT_MOD_JAR_RE.search(safe_name):
+        safe_name = 'railplanner-{}.jar'.format(latest)
+    final = mods / safe_name
     tmp.replace(final)
     server.logger.info('[RailPlanner] 已换上新 jar：{}'.format(final.name))
     _last_result = '已更新到 {}'.format(latest)
