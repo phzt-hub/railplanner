@@ -14,6 +14,7 @@ import com.phzt.railplanner.client.render.MapView;
 import com.phzt.railplanner.client.render.PlannerRenderer;
 import com.phzt.railplanner.client.sync.SyncClient;
 import com.phzt.railplanner.client.sync.SyncKeys;
+import com.phzt.railplanner.client.diag.Diag;
 import com.phzt.railplanner.client.terrain.XaeroTerrain;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -119,13 +120,16 @@ public final class Planner {
         Screen screen = mc.gui.screen();
         if (screen instanceof GuiMap) {
             active = !active;
+            Diag.once("active", "规划模式 → " + (active ? "开" : "关") + "（在地图界面里按切换键）");
             return;
         }
         if (openMap(mc)) {
             active = true;
+            Diag.once("active", "规划模式 → 开（顺手打开了地图）");
             return;
         }
         active = !active;
+        Diag.once("active", "规划模式 → " + (active ? "开" : "关"));
     }
 
     private static boolean openMap(Minecraft mc) {
@@ -165,8 +169,10 @@ public final class Planner {
             LOG.warn("迁移旧存档失败：{}", t.toString());
         }
         if (!id.equals(worldId) || routes.isEmpty()) {
+            int before = routes.size();
+            String oldId = worldId;
             if (!routes.isEmpty()) {
-                RouteStore.save(worldId, routes);
+                RouteStore.save(oldId, routes);
             }
             worldId = id;
             routes.clear();
@@ -175,6 +181,9 @@ public final class Planner {
             displayed = routes.isEmpty() ? null : routes.get(0);
             stats = null;
             statsDirty = true;
+            // 清空重载一次，世界里那条 3D 线和地图上的线会一起没掉，所以必须记下来。
+            Diag.once("load", "重载路线：" + oldId + " → " + id + "，" + before + " 条 → " + routes.size()
+                    + " 条，current 清空，displayed=" + shortId(displayed));
         }
     }
 
@@ -360,6 +369,7 @@ public final class Planner {
             }
         }
         out.addAll(want.values());
+        int before = routes.size();
         routes.clear();
         routes.addAll(out);
         if (current != null && !routes.contains(current)) {
@@ -371,9 +381,12 @@ public final class Planner {
         stats = null;
         statsDirty = true;
         dirty = false;
+        Diag.info("[sync] applySynced(" + key + ")：进 " + merged.size() + " 条，本地 " + before + " → "
+                + routes.size() + " 条，current=" + shortId(current) + "，displayed=" + shortId(displayed));
     }
 
     public static void saveNow() {
+        Diag.event("save", "保存路线：" + worldId + " " + routes.size() + " 条（current=" + shortId(current) + "）");
         RouteStore.save(worldId, routes);
         dirty = false;
         tickCounter = 0;
@@ -1540,11 +1553,14 @@ public final class Planner {
             stats = null;
             statsRouteId = null;
             statsDirty = false;
+            Diag.once("stats", "路径 " + route.path().size() + " 格超过 20000，统计直接算空（3D 线整条不画）");
             return null;
         }
         stats = RouteStats.compute(route, mapProcessor());
         statsRouteId = route.id;
         statsDirty = false;
+        Diag.once("stats", "重算统计：" + shortId(route) + " " + stats.cells + " 格，地面已知 "
+                + stats.knownCells + "/" + stats.cells);
         return stats;
     }
 
@@ -1559,6 +1575,15 @@ public final class Planner {
 
     public static String statsRouteId() {
         return statsRouteId;
+    }
+
+    /** 日志里用的短名字。 */
+    private static String shortId(RailRoute route) {
+        if (route == null) {
+            return "null";
+        }
+        String id = route.id;
+        return id == null || id.length() < 8 ? String.valueOf(id) : id.substring(0, 8);
     }
 
     public static boolean isActive() {

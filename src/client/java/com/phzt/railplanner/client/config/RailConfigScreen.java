@@ -1,6 +1,7 @@
 package com.phzt.railplanner.client.config;
 
 import com.phzt.railplanner.client.Loc;
+import com.phzt.railplanner.client.diag.Diag;
 import com.mojang.blaze3d.Blaze3D;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.planner.Planner;
@@ -44,6 +45,7 @@ public class RailConfigScreen extends Screen {
     private int headerY;
     private Button installButton;
     private Button restartButton;
+    private Button diagButton;
     /** 触发物品那一行，输入框右边留出来画标题用。 */
     private EditBox poiItemField;
     private int poiRow;
@@ -181,6 +183,17 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 内网源：正式包默认关，debug 构建强制开；关着就只查 GitHub
+        this.addRenderableWidget(Button.builder(labelLan(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.lanUpdates = !cfg.lanUpdates;
+            cfg.save();
+            b.setMessage(labelLan());
+            LOG.info("内网更新源 → {}（debug 构建：{}）", cfg.lanUpdates ? "开" : "关",
+                    UpdateChecker.debugBuild() ? "是，强制开" : "否");
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
+
         this.addRenderableWidget(Button.builder(labelInterval(), b -> {
             RailConfig cfg = RailConfig.get();
             cfg.intervalHours = nextInterval(cfg.intervalHours);
@@ -221,6 +234,17 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 诊断日志：正式包默认关，debug 包默认开；点了立刻生效，不用重启
+        this.diagButton = this.addRenderableWidget(Button.builder(labelDiag(), b -> {
+            Diag.setEnabled(!Diag.enabled());
+            b.setMessage(labelDiag());
+            LOG.info("诊断日志 → {}（{}）", Diag.enabled() ? "开" : "关", Diag.pathText());
+            this.minecraft.gui.hud.setOverlayMessage(Component.literal(Loc.s(
+                    "诊断日志：" + (Diag.enabled() ? "开" : "关") + " · " + Diag.pathText(),
+                    "Diagnostic log: " + (Diag.enabled() ? "on" : "off") + " · " + Diag.pathText())), false);
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
+
         // 底下一行：按键绑定 | 打开下载页 | 完成（两栏高度可能差一行，取低的那条）
         int bottom = Math.max(left, right);
         int totalW = colW * 2 + 8;
@@ -254,6 +278,9 @@ public class RailConfigScreen extends Screen {
         }
         if (restartButton != null) {
             restartButton.setMessage(labelRestart());
+        }
+        if (diagButton != null) {
+            diagButton.setMessage(labelDiag());
         }
 
         g.centeredText(this.font, this.getTitle(), this.width / 2, 24, 0xFFFFFFFF);
@@ -358,6 +385,12 @@ public class RailConfigScreen extends Screen {
         return Component.translatable("railplanner.config.world_range", Math.round(RailConfig.get().worldRange));
     }
 
+    private static Component labelDiag() {
+        boolean on = Diag.enabled();
+        return Component.literal(Loc.s("诊断日志：", "Diagnostic log: ") + (on ? Loc.s("开", "on") : Loc.s("关", "off"))
+                + (on ? " · " + Diag.level() : ""));
+    }
+
     private static Component labelAutoUpdate() {
         return Component.literal(RailConfig.get().autoUpdate ? Loc.s("自动下载更新：开", "Auto-download updates: on") : Loc.s("自动下载更新：关", "Auto-download updates: off"));
     }
@@ -404,6 +437,15 @@ public class RailConfigScreen extends Screen {
                 ? "railplanner.config.updates_on" : "railplanner.config.updates_off");
     }
 
+    /** 内网源：debug 构建由版本号强制打开，这时按钮点不动实际效果，标签上标出来免得以为没生效。 */
+    private static Component labelLan() {
+        boolean debug = UpdateChecker.debugBuild();
+        boolean on = debug || RailConfig.get().lanUpdates;
+        String text = on ? Loc.s("内网更新源：开", "LAN source: on")
+                : Loc.s("内网更新源：关", "LAN source: off");
+        return Component.literal(debug ? text + Loc.s("（debug）", " (debug)") : text);
+    }
+
     private static Component labelInterval() {
         return Component.translatable("railplanner.config.interval", RailConfig.get().intervalHours);
     }
@@ -428,13 +470,15 @@ public class RailConfigScreen extends Screen {
     }
 
     private static Component statusLine() {
-        return switch (UpdateChecker.status()) {
+        Component base = switch (UpdateChecker.status()) {
             case NEVER -> Component.translatable("railplanner.config.status.never");
             case CHECKING -> Component.translatable("railplanner.config.status.checking");
             case UP_TO_DATE -> Component.translatable("railplanner.config.status.up_to_date");
             case NEWER -> Component.translatable("railplanner.config.status.newer", UpdateChecker.detail());
             case FAILED -> Component.translatable("railplanner.config.status.failed", UpdateChecker.detail());
         };
+        String src = UpdateChecker.source();
+        return src.isEmpty() ? base : base.copy().append(Component.literal(" · " + src));
     }
 
     private static int statusColor() {

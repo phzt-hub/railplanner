@@ -3,6 +3,7 @@ package com.phzt.railplanner.client.sync;
 import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.RailPlanner;
 import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.diag.Diag;
 import com.phzt.railplanner.client.model.RailRoute;
 import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.sync.Dto;
@@ -99,6 +100,7 @@ public final class SyncClient {
         if (!RailConfig.get().syncEnabled) {
             state = State.DISABLED;
             LOG.info("同步：已关闭（{}）", key);
+            Diag.event("sync", "已关闭（" + key + "），只用本地");
             return;
         }
         if (!canSend()) {
@@ -114,6 +116,7 @@ public final class SyncClient {
         state = State.HELLO;
         deadline = HELLO_TIMEOUT;
         LOG.info("同步：向 {} 握手（客户端 {}）", key, RailPlanner.version());
+        Diag.event("sync", "握手 " + key + "（客户端 " + RailPlanner.version() + "）");
     }
 
     public static void onDisconnect() {
@@ -205,6 +208,7 @@ public final class SyncClient {
             return;
         }
         LOG.info("同步：握手成功（服务端 {}）", ack.server);
+        Diag.event("sync", "握手成功，服务端 " + ack.server);
         requestPull();
     }
 
@@ -233,6 +237,10 @@ public final class SyncClient {
         LOG.info("同步：{} 本地 {} 条，服务端 {} 条，要推 {} / 要删 {} / 要拉 {} / 冲突 {}",
                 key, localMap.size(), remote == null || remote.routes == null ? 0 : remote.routes.size(),
                 p.push.size(), p.pushDeletes.size(), p.adopt.size(), p.conflicts.size());
+        Diag.event("sync", "比对 " + key + "：本地 " + localMap.size() + " / 服务端 "
+                + (remote == null || remote.routes == null ? 0 : remote.routes.size())
+                + "，推 " + p.push.size() + " 删 " + p.pushDeletes.size()
+                + " 拉 " + p.adopt.size() + " 冲突 " + p.conflicts.size());
         if (p.hasConflicts()) {
             state = State.CONFLICT;
             plan = p;
@@ -294,6 +302,7 @@ public final class SyncClient {
         Dto.Ack ack = Dto.GSON.fromJson(body, Dto.Ack.class);
         if (ack == null || !ack.ok) {
             LOG.warn("同步：服务端拒绝了这次推送");
+            Diag.warn("同步：服务端拒绝了这次推送", null);
             pendingBase = null;
             state = State.READY;
             return;
@@ -304,6 +313,7 @@ public final class SyncClient {
             debounce = DEBOUNCE_TICKS;
         }
         LOG.info("同步：完成，服务端版本 {}（{}）", ack.revision, key);
+        Diag.event("sync", "完成，服务端版本 " + ack.revision + "（" + key + "）");
     }
 
     // ---------------------------------------------------------------- 本地落地
@@ -366,6 +376,7 @@ public final class SyncClient {
             case PULL -> {
                 if (retries++ < 1) {
                     LOG.info("同步：拉取超时，重试一次");
+                    Diag.event("sync", "拉取超时，重试一次");
                     requestPull();
                 } else {
                     absent(mc, "拉取超时，这次先用本地数据");
@@ -374,6 +385,7 @@ public final class SyncClient {
             case PUSH -> {
                 if (retries++ < 1) {
                     LOG.info("同步：推送超时，重试一次");
+                    Diag.event("sync", "推送超时，重试一次");
                     Dto.Push push = new Dto.Push();
                     push.worldKey = key;
                     if (send(Payloads.C2S_PUSH, push)) {
@@ -383,6 +395,7 @@ public final class SyncClient {
                     }
                 } else {
                     LOG.warn("同步：推送两次都超时，等下次改动再试");
+                    Diag.event("sync", "推送两次都超时，等下次改动再试");
                     pendingBase = null;
                     state = State.READY;
                 }
@@ -398,6 +411,7 @@ public final class SyncClient {
         state = State.ABSENT;
         detail = reason;
         LOG.info("同步：{} → 只用本地（{}）", reason, key);
+        Diag.event("sync", "只用本地：" + reason + "（" + key + "）");
         RailConfig cfg = RailConfig.get();
         if (!cfg.noModNotified.contains(key)) {
             cfg.noModNotified.add(key);

@@ -1,6 +1,7 @@
 package com.phzt.railplanner.client.world;
 
 import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.diag.Diag;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.geom.Vec2;
@@ -80,54 +81,83 @@ public final class RouteGizmos {
 
     public static void emit(double camX, double camY, double camZ) {
         RailConfig config = RailConfig.get();
-        if (!config.worldLines || !Planner.isActive()) {
+        if (!config.worldLines) {
+            Diag.once("3d", "没画：3D 线总开关关着");
+            return;
+        }
+        if (!Planner.isActive()) {
+            Diag.once("3d", "没画：规划模式没开（active=false）");
             return;
         }
         RailRoute route = Planner.displayRoute();
-        if (route == null || route.anchors.size() < 2) {
+        if (route == null) {
+            Diag.once("3d", "没画：displayRoute() 是空的（内存里 " + Planner.routes.size() + " 条线）");
+            return;
+        }
+        if (route.anchors.size() < 2) {
+            Diag.once("3d", "没画：这条线只有 " + route.anchors.size() + " 个点（" + shortId(route) + "）");
             return;
         }
         try {
-            emitRoute(route, config, camX, camY, camZ);
+            String why = emitRoute(route, config, camX, camY, camZ);
+            if (why != null) {
+                Diag.once("3d", "没画：" + why + "（" + shortId(route) + "）");
+            }
         } catch (RuntimeException e) {
             // 没有收集器（例如帧外的误调用）时原版直接抛 IllegalStateException，不该让游戏崩。
+            Diag.warn("3D 线绘制抛异常：" + e, e);
         }
     }
 
-    private static void emitRoute(RailRoute route, RailConfig config, double camX, double camY, double camZ) {
+    private static String shortId(RailRoute route) {
+        return route.id == null || route.id.length() < 8 ? String.valueOf(route.id) : route.id.substring(0, 8);
+    }
+
+    /** @return 没画成的原因；画成了返回 null */
+    private static String emitRoute(RailRoute route, RailConfig config, double camX, double camY, double camZ) {
         Alignment al = route.alignment();
         if (al.length() < 1.0) {
-            return;
+            return "线路长度只有 " + al.length() + " 格";
         }
         RouteStats st = Planner.ensureStats();
-        if (st == null || st.designProfile == null || st.designProfile.length < 2) {
-            return;
+        if (st == null) {
+            return "统计是空的（路径 " + route.path().size() + " 格；超过 20000 格会被直接算成空）";
+        }
+        if (st.designProfile == null || st.designProfile.length < 2) {
+            return "设计纵断面为空（" + (st.designProfile == null ? "null" : st.designProfile.length + " 格") + "）";
         }
         BlockPath path = route.path();
         int n = path.size();
         float[] design = st.designProfile;
-        if (n < 2 || design.length != n) {
-            return;
+        if (n < 2) {
+            return "路径只有 " + n + " 格";
+        }
+        if (design.length != n) {
+            return "纵断面 " + design.length + " 格，路径 " + n + " 格，对不上（统计没跟着重算）";
         }
         float[] ground = st.smoothTerrainProfile != null && st.smoothTerrainProfile.length == n
                 ? st.smoothTerrainProfile : st.terrainProfile;
         if (ground == null || ground.length != n) {
-            return;
+            return "地面纵断面对不上（" + (ground == null ? "null" : ground.length + " 格") + "，路径 " + n + " 格）";
         }
 
         boolean onTop = config.worldXray;
         double range = Math.max(32.0, Math.min(2048.0, config.worldRange));
         double range2 = range * range;
 
+        int faces = 0;
         if (config.worldSurfaces) {
-            emitSurfaces(al, path, design, ground, n, camX, camZ, range2, onTop);
+            faces = emitSurfaces(al, path, design, ground, n, camX, camZ, range2, onTop);
         }
-        emitLines(al, path, design, ground, n, route.color, config, camX, camZ, range2, onTop);
+        int lines = emitLines(al, path, design, ground, n, route.color, config, camX, camZ, range2, onTop);
 
         // 点不只给「正在画」看：拿着触发物品右键点它就能改参数，所以画完的那条线也得留着点。
         if (config.worldAnchors) {
             emitAnchors(route, path, design, ground, n, camX, camZ, range2, onTop);
         }
+        Diag.once("3d", "画了：线 " + lines + " 条 / 面 " + faces + " 片，路径 " + n + " 格，地面已知 "
+                + st.knownCells + "/" + st.cells + "，范围 " + (int) range + " 格（" + shortId(route) + "）");
+        return null;
     }
 
     /**
@@ -235,12 +265,13 @@ public final class RouteGizmos {
     }
 
     /** 隧道/桥段落的两侧挡墙 + 设计面走廊，围出一块半透明的体积。 */
-    private static void emitSurfaces(Alignment al, BlockPath path, float[] design, float[] ground, int n,
+    private static int emitSurfaces(Alignment al, BlockPath path, float[] design, float[] ground, int n,
             double camX, double camZ, double range2, boolean onTop) {
         double length = al.length();
         float[] chainage = path.chainage;
         int budget = MAX_FACES;
         int idx = 0;
+        int faces = 0;
         for (double s = 0; s + FACE <= length; s += FACE) {
             if (budget < 3) {
                 break;
@@ -288,13 +319,16 @@ public final class RouteGizmos {
             budget -= rect(l0, l1, l1g, l0g, wall, onTop);
             budget -= rect(r0, r1, r1g, r0g, wall, onTop);
             budget -= rect(l0, l1, r1, r0, deck, onTop);
+            faces += 3;
         }
+        return faces;
     }
 
     /** 设计线、地面线，以及（面片关掉时）填挖立柱。 */
-    private static void emitLines(Alignment al, BlockPath path, float[] design, float[] ground, int n,
+    private static int emitLines(Alignment al, BlockPath path, float[] design, float[] ground, int n,
             int baseColor, RailConfig config, double camX, double camZ, double range2, boolean onTop) {
         int budget = MAX_LINES;
+        int placed = 0;
         int idx = 0;
         Vec3 prevDesign = null;
         Vec3 prevGround = null;
@@ -329,6 +363,7 @@ public final class RouteGizmos {
 
             if (near && prevDesign != null) {
                 budget -= line(prevDesign, head, prevColor, 3.0f, onTop);
+                placed++;
             }
             if (near && foot != null && prevGround != null) {
                 budget -= line(prevGround, foot, TERRAIN, 1.0f, onTop);
@@ -350,6 +385,7 @@ public final class RouteGizmos {
             prevGround = foot;
             prevColor = color;
         }
+        return placed;
     }
 
     /** 1 = 隧道（地面在设计面之上），-1 = 桥（地面在设计面之下），0 = 贴着地面。 */

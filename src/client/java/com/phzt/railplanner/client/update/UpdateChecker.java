@@ -4,12 +4,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.diag.Diag;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,9 +26,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 向 GitHub 查这个仓库的最新 release，比自己新就在聊天栏说一声。
+ * 查最新 release，比自己新就在聊天栏说一声。
  *
- * <p>只发一个 GET，不传任何本地数据；带 ETag，命中缓存时 GitHub 回 304、不计入
+ * <p>默认只查 GitHub；内网发布站（railplannerrelease.phzt.lan）是可选源：设置页打开
+ * 「内网更新源」，或者版本号里带 {@code -debug} 的调试构建，才会先查内网、查不到再退回
+ * GitHub。正式包不带这段分支的副作用 —— 外面的人解析不了内网域名，先试一次会白等。</p>
+ *
+ * <p>只发一个 GET，不传任何本地数据；GitHub 那条带 ETag，命中缓存时回 304、不计入
  * 未登录接口的 60 次/小时限流。</p>
  */
 public final class UpdateChecker {
@@ -40,6 +46,8 @@ public final class UpdateChecker {
     public static final String REPO = "phzt-hub/railplanner";
     public static final String RELEASES_PAGE = "https://github.com/" + REPO + "/releases";
     private static final String API_URL = "https://api.github.com/repos/" + REPO + "/releases/latest";
+    /** 内网发布站的索引：和 GitHub release 对象同构，只是少了接口字段。 */
+    private static final String LAN_API_URL = "http://railplannerrelease.phzt.lan/release/latest.json";
 
     private static final ExecutorService IO = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "railplanner-update");
@@ -51,6 +59,8 @@ public final class UpdateChecker {
 
     private static volatile Status status = Status.NEVER;
     private static volatile String detail = "";
+    /** 这次结果是从哪儿来的：「内网」/「GitHub」，还没查过时是空串。 */
+    private static volatile String source = "";
     private static volatile boolean inFlight;
     private static String notifiedVersion = "";
     private static int joinDelay = -1;
@@ -89,6 +99,20 @@ public final class UpdateChecker {
 
     public static String detail() {
         return detail;
+    }
+
+    public static String source() {
+        return source;
+    }
+
+    /** 调试构建：版本号里带 -debug（正式版永远是纯数字版本号）。 */
+    public static boolean debugBuild() {
+        return currentVersion().toLowerCase(Locale.ROOT).contains("-debug");
+    }
+
+    /** 内网源要不要试：debug 构建强制开，正式包只在设置页打开时才试。 */
+    public static boolean lanEnabled() {
+        return debugBuild() || RailConfig.get().lanUpdates;
     }
 
     public static long lastCheckEpochMs() {
@@ -142,25 +166,38 @@ public final class UpdateChecker {
         String etag = RailConfig.get().lastEtag;
         String current = currentVersion();
         LOG.info("检查更新：本地 {}，缓存标记 {}", current, etag == null || etag.isEmpty() ? "无" : "有");
+        Diag.event("update", "开始检查更新：本地 " + current + "，缓存标记 " + (etag == null || etag.isEmpty() ? "无" : "有"));
         CompletableFuture.runAsync(() -> fetch(etag, current), IO);
     }
 
     private static void fetch(String etag, String current) {
+        String lanError = null;
+        if (lanEnabled()) {
+            try {
+                HttpResponse<String> lan = client().send(
+                        request(LAN_API_URL, null, current, 6), HttpResponse.BodyHandlers.ofString());
+                if (lan.statusCode() == 200) {
+                    post(lan.statusCode(), lan.body(), etag, current, null, "内网");
+                    return;
+                }
+                lanError = "内网 HTTP " + lan.statusCode();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                lanError = "内网 interrupted";
+            } catch (IOException | RuntimeException e) {
+                lanError = "内网 " + e.getClass().getSimpleName();
+            }
+            LOG.info("内网源不可用（{}），改用 GitHub", lanError);
+            Diag.event("update", "内网源不可用（" + lanError + "），改用 GitHub");
+        }
+
         int code;
         String body = null;
         String newEtag = etag;
         String error = null;
         try {
-            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(API_URL))
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "RailPlanner/" + current)
-                    .header("X-GitHub-Api-Version", "2022-11-28")
-                    .timeout(Duration.ofSeconds(12))
-                    .GET();
-            if (etag != null && !etag.isEmpty()) {
-                builder.header("If-None-Match", etag);
-            }
-            HttpResponse<String> response = client().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = client().send(
+                    request(API_URL, etag, current, 12), HttpResponse.BodyHandlers.ofString());
             code = response.statusCode();
             body = response.body();
             String header = response.headers().firstValue("ETag").orElse(null);
@@ -175,11 +212,26 @@ public final class UpdateChecker {
             code = -1;
             error = "interrupted";
         }
-        int finalCode = code;
-        String finalBody = body;
-        String finalEtag = newEtag;
-        String finalError = error;
-        Minecraft.getInstance().execute(() -> finish(finalCode, finalBody, finalEtag, current, finalError));
+        post(code, body, newEtag, current, error, "GitHub");
+    }
+
+    /** 拼一个带 UA、超时和可选 ETag 的 GET。 */
+    private static HttpRequest request(String url, String etag, String current, int seconds) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "RailPlanner/" + current)
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .timeout(Duration.ofSeconds(seconds))
+                .GET();
+        if (etag != null && !etag.isEmpty()) {
+            builder.header("If-None-Match", etag);
+        }
+        return builder.build();
+    }
+
+    /** 结果要回主线程落地（改配置、发聊天），所以一律转一手。 */
+    private static void post(int code, String body, String etag, String current, String error, String from) {
+        Minecraft.getInstance().execute(() -> finish(code, body, etag, current, error, from));
     }
 
     private static HttpClient client() {
@@ -192,8 +244,9 @@ public final class UpdateChecker {
         return http;
     }
 
-    private static void finish(int code, String body, String etag, String current, String error) {
+    private static void finish(int code, String body, String etag, String current, String error, String from) {
         RailConfig cfg = RailConfig.get();
+        source = from;
         cfg.lastCheckEpochMs = System.currentTimeMillis();
         if (etag != null) {
             cfg.lastEtag = etag;
@@ -215,7 +268,10 @@ public final class UpdateChecker {
                 detail = "响应不是合法 JSON";
             }
         } else if (code == 304) {
-            String url = cfg.latestUrl.isEmpty() ? RELEASES_PAGE : cfg.latestUrl;
+            // 304 走的是上次存下的页面地址；从内网切回 GitHub 时那个地址是内网的，换成 release 列表
+            String stored = cfg.latestUrl;
+            String url = stored.isEmpty() || (!"内网".equals(from) && stored.contains("railplannerrelease.phzt.lan"))
+                    ? RELEASES_PAGE : stored;
             evaluate(cfg.latestVersion, url, current);
         } else if (code == 404) {
             status = Status.FAILED;
@@ -231,7 +287,7 @@ public final class UpdateChecker {
             detail = "HTTP " + code;
         }
         cfg.save();
-        LOG.info("检查完成：HTTP {}，线上 {}，状态 {} {}", code, cfg.latestVersion,
+        LOG.info("检查完成：来源 {}，HTTP {}，线上 {}，状态 {} {}", from, code, cfg.latestVersion,
                 status, detail.isEmpty() ? "" : "— " + detail);
     }
 

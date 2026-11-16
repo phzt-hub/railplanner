@@ -2,6 +2,8 @@ package com.phzt.railplanner.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.diag.Diag;
+import com.phzt.railplanner.client.diag.DiagCommands;
 import com.phzt.railplanner.client.config.RailConfigScreen;
 import com.phzt.railplanner.client.planner.Planner;
 import com.phzt.railplanner.client.render.WorldHud;
@@ -80,6 +82,12 @@ public final class RailPlannerClient implements ClientModInitializer {
             KeyMappingHelper.registerKeyMapping(mapping);
         }
         RailConfig.load();
+        // 诊断日志先起来：后面每一步的加载都能留下记录；崩了也有快照可看。
+        Diag.start();
+        Diag.installCrashHook();
+        DiagCommands.register();
+        Diag.event("boot", "客户端初始化：版本 " + UpdateChecker.currentVersion()
+                + "，诊断 " + (Diag.enabled() ? "开（" + Diag.level() + "）" : "关"));
         UpdateChecker.init();
         // 世界里拿触发物品（默认普通铁轨）右键点中一个点 → 弹编辑框；没命中就放行，照常放方块。
         UseBlockCallback.EVENT.register((player, level, hand, hit) -> PointPick.onUse(level, player, hand));
@@ -134,6 +142,7 @@ public final class RailPlannerClient implements ClientModInitializer {
             Planner.tick(client);
             SyncClient.tick(client);
             UpdateChecker.tick(client);
+            Diag.tick(client);
         });
     }
 

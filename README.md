@@ -79,6 +79,7 @@
 - [点的名字、类型与线路颜色](docs/使用手册.md#64-点的名字类型与线路颜色) —— 六种点位图标、名字显示在哪、色板和 RGB 怎么用
 - [在世界里右键改点位](docs/使用手册.md#65-在世界里右键改点位) —— 拿什么物品、多近算点中、三个前提、命中按哪根针算、X / Z 手输、锁链切单点锁
 - [服务端自动更新](docs/使用手册.md#17-服务端自动更新mcdr-插件) —— MCDR 插件：换 jar、按开关重启
+- [诊断日志](docs/使用手册.md#71-诊断日志线闪一下就没了的时候) —— 线闪一下又回来、`latest.log` 里却什么都没有时，用 `/railplanner diag on` 打开的那份记录
 - [已知限制](docs/使用手册.md#12-已知限制)
 
 ## 构建
@@ -87,6 +88,7 @@
 ./tools/fetch-xaero.sh     # 下载编译用的 Xaero 26.3 jar（不进仓库：Xaero 是 All Rights Reserved）
 ./tools/fetch-modmenu.sh   # 下载编译用的 Mod Menu（可选依赖，同样不进仓库）
 ./gradlew25 build          # 不要用 ./gradlew：全局 ~/.gradle/gradle.properties 把 JVM 钉在 java-21
+./gradlew25 build -Pmod_version=0.9.1-debug   # 调试包：版本号带 -debug，诊断日志默认开
 ./tools/make-icon.py       # 只改图标时跑：重新生成 assets/railplanner/icon.png（128×128，要 Pillow + numpy）
 ```
 

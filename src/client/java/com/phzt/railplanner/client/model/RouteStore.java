@@ -2,6 +2,7 @@ package com.phzt.railplanner.client.model;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.phzt.railplanner.client.diag.Diag;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,6 +31,7 @@ public final class RouteStore {
         List<RailRoute> out = new ArrayList<>();
         Path p = file(worldId);
         if (!Files.isRegularFile(p)) {
+            Diag.event("store", "读取 " + p.getFileName() + "：还没有存档文件（0 条）");
             return out;
         }
         try {
@@ -57,7 +59,9 @@ public final class RouteStore {
             }
         } catch (Exception e) {
             LOGGER.warn("读取路线失败 {}: {}", p, e.toString());
+            Diag.warn("读取路线失败 " + p + "：" + e, e);
         }
+        Diag.event("store", "读取 " + p.getFileName() + " → " + out.size() + " 条线");
         return out;
     }
 
@@ -124,8 +128,10 @@ public final class RouteStore {
         try {
             Files.createDirectories(p.getParent());
             Files.writeString(p, GSON.toJson(dto), StandardCharsets.UTF_8);
+            Diag.once("store", "保存 " + p.getFileName() + "：" + routes.size() + " 条线");
         } catch (IOException e) {
             LOGGER.warn("保存路线失败 {}: {}", p, e.toString());
+            Diag.warn("保存路线失败 " + p + "：" + e, e);
         }
     }
 

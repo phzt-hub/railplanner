@@ -24,6 +24,11 @@ public final class RailConfig {
 
     /** 自动检查更新（默认开）。 */
     public boolean checkUpdates = true;
+    /**
+     * 内网更新源：开着时先查 railplannerrelease.phzt.lan 的 latest.json，查不到再退回 GitHub。
+     * 正式包默认关（内网域名在外面解析不了）；版本号里带 -debug 的调试构建自动开。
+     */
+    public boolean lanUpdates = false;
     /** 自动检查的最小间隔，小时。 */
     public int intervalHours = DEFAULT_INTERVAL_HOURS;
     /** 上次检查的时间戳（毫秒）。 */
@@ -69,6 +74,14 @@ public final class RailConfig {
      * 只剩「打开设置页」那个键还能用——否则关掉之后就再也开不回来了。
      */
     public boolean hotkeysOff;
+    /**
+     * 诊断日志（logs/railplanner-diag.log）：记渲染/加载/同步每一步在做什么，外加每 10 秒
+     * 一行心跳。null = 按构建类型决定——版本号带 -debug 的调试包默认开，正式包默认关，
+     * 玩家可以在设置页或 /railplanner diag on 打开。
+     */
+    public Boolean diag;
+    /** 诊断级别：basic 只记变化/事件/异常/心跳，verbose 再加高频细节。 */
+    public String diagLevel = "basic";
     /** 和服务端同步：服务端装了本模组才生效，关掉就纯本地。 */
     public boolean syncEnabled = true;
     /** 已经提示过「服务端没装」的服务器，免得每次进服都在聊天栏刷一遍。 */
@@ -134,7 +147,24 @@ public final class RailConfig {
         if (poiLockItem == null || poiLockItem.isBlank()) {
             poiLockItem = "minecraft:iron_chain";
         }
+        if (!"verbose".equalsIgnoreCase(diagLevel)) {
+            diagLevel = "basic";
+        }
         return this;
+    }
+
+    /** 版本号是不是 debug 构建：每次都查 FabricLoader 太浪费，判一次记住。 */
+    private static Boolean debugBuildCache;
+
+    /** 诊断日志开不开：配置里写过就听配置，没写过就按构建类型（debug 包默认开）。 */
+    public boolean diagOn() {
+        if (diag != null) {
+            return diag;
+        }
+        if (debugBuildCache == null) {
+            debugBuildCache = com.phzt.railplanner.client.update.UpdateChecker.debugBuild();
+        }
+        return debugBuildCache;
     }
 
     /** 规整过的触发物品 id：空着算普通铁轨，没写命名空间算 minecraft。 */

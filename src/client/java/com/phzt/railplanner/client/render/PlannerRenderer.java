@@ -3,6 +3,7 @@ package com.phzt.railplanner.client.render;
 import com.phzt.railplanner.client.Loc;
 import com.phzt.railplanner.client.RailPlannerClient;
 import com.phzt.railplanner.client.config.RailConfig;
+import com.phzt.railplanner.client.diag.Diag;
 import com.phzt.railplanner.client.geom.Alignment;
 import com.phzt.railplanner.client.geom.BlockPath;
 import com.phzt.railplanner.client.geom.Vec2;
@@ -58,6 +59,14 @@ public final class PlannerRenderer {
                               List<RailRoute> routes, RailRoute current, int hoverIndex, int dragIndex) {
         nameRoute = null;
         RailRoute shown = Planner.displayRoute();
+        int drawable = 0;
+        for (RailRoute r : routes) {
+            if (r.alignment().length() >= 0.1) {
+                drawable++;
+            }
+        }
+        Diag.once("map", "地图界面：routes=" + routes.size() + "（可画 " + drawable + "），current="
+                + shortId(current) + "，displayRoute=" + shortId(shown) + "，active=" + Planner.isActive());
         for (RailRoute route : routes) {
             drawRoute(g, view, route, route == current);
             drawRouteName(g, view, route, route == shown);
@@ -85,6 +94,14 @@ public final class PlannerRenderer {
                     : Loc.s("铁路选线 · 按 ", "Rail Planner · press ") + RailPlannerClient.keyName(RailPlannerClient.TOGGLE)
                             + Loc.s(" 进入规划模式（", " for planning mode (") + routes.size() + Loc.s(" 条线）", " routes)"));
         }
+    }
+
+    private static String shortId(RailRoute route) {
+        if (route == null) {
+            return "null";
+        }
+        String id = route.id;
+        return id == null || id.length() < 8 ? String.valueOf(id) : id.substring(0, 8);
     }
 
     private static void drawRoute(GuiGraphicsExtractor g, MapView view, RailRoute route, boolean selected) {
