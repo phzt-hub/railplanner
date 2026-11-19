@@ -23,9 +23,10 @@ public final class Dto {
      *
      * <p>2：锚点带上 Y 和标记位（{@code [x, z, y, flags]}），0.6.x 的 [x, z] 读进来当「还没解析」。<br>
      * 3：点的名字（{@code anchorNames}，与锚点同下标）和点的类型（flags 的 bit8 起）。<br>
-     * 4：正交布线（{@code orthogonal}，进内容指纹）。</p>
+     * 4：正交布线（{@code orthogonal}，进内容指纹）。<br>
+     * 5：缓和曲线（{@code easement}，进内容指纹）。</p>
      */
-    public static final int PROTO = 4;
+    public static final int PROTO = 5;
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     public static final Gson COMPACT = new Gson();
@@ -41,6 +42,8 @@ public final class Dto {
         public double radius = 24.0;
         /** 这条线走正交布线（沿 X / Z 铺，90° 弯拐）。老客户端/老存档没有这一项 = false。 */
         public boolean orthogonal;
+        /** 每个弯插缓和曲线（回旋线）。老客户端/老存档没有这一项 = false。 */
+        public boolean easement;
         public long updatedAt;
         public List<int[]> anchors = new ArrayList<>();
         /** 与 anchors 同下标的点名字，空字符串表示没起名；老客户端不带这个字段。 */
@@ -53,7 +56,7 @@ public final class Dto {
             return anchors == null ? 0 : anchors.size();
         }
 
-        /** 内容指纹：由 id / 名字 / 颜色 / 半径 / 正交 / 锚点决定。 */
+        /** 内容指纹：由 id / 名字 / 颜色 / 半径 / 正交 / 缓和 / 锚点决定。 */
         public String hash() {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", id);
@@ -61,6 +64,7 @@ public final class Dto {
             m.put("color", color);
             m.put("radius", clean(radius));
             m.put("orthogonal", orthogonal);
+            m.put("easement", easement);
             m.put("anchors", anchors);
             m.put("anchorNames", anchorNames);
             return sha256(COMPACT.toJson(m));

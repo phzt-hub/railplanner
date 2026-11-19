@@ -20,6 +20,7 @@ public final class RouteCodec {
         d.color = r.color;
         d.radius = r.radius;
         d.orthogonal = r.orthogonal;
+        d.easement = r.easement;
         d.updatedAt = System.currentTimeMillis();
         d.anchors = new ArrayList<>();
         d.anchorNames = new ArrayList<>();
@@ -34,6 +35,7 @@ public final class RouteCodec {
         RailRoute r = new RailRoute(d.id, d.name, d.color);
         r.radius = d.radius > 0 ? d.radius : 24.0;
         r.orthogonal = d.orthogonal;
+        r.easement = d.easement;
         if (d.anchors != null) {
             for (int i = 0; i < d.anchors.size(); i++) {
                 Anchor anchor = Anchor.fromArray(d.anchors.get(i));

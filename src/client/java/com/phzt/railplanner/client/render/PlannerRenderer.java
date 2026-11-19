@@ -30,6 +30,8 @@ public final class PlannerRenderer {
     private static final int ACCENT = 0xFF69F0AE;
     private static final int WARN = 0xFFFF6E6E;
     private static final int CAUTION = 0xFFFFB74D;
+    /** 缓和曲线那条数用的是偏冷的蓝，跟警告色分开。 */
+    private static final int ACCENT2 = 0xFF64B5F6;
     /** 锁住的那个点的角标颜色（地图上一点点大，得用暖色才看得见）。 */
     private static final int LOCK = 0xFFF0C040;
     /** 隧道/桥占已判长度的比例超过这个数（且超过 32 格）就算工程偏大。 */
@@ -46,12 +48,19 @@ public final class PlannerRenderer {
 
     private static final List<NameLabel> LABELS = new ArrayList<>();
 
-    /** 上一帧画在面板标题行右端的「正交化」小按钮。 */
+    /** 上一帧画在面板标题行右端的两个小按钮：「正交化」「缓和化」。 */
     private static RailRoute chipRoute;
     private static int chipX;
     private static int chipY;
     private static int chipW;
     private static int chipH;
+
+    /** 标题行右端第二个小按钮「缓和化」，排在「正交化」左边。 */
+    private static RailRoute easeRoute;
+    private static int easeX;
+    private static int easeY;
+    private static int easeW;
+    private static int easeH;
 
     /** 上一帧画出来的色板 / 色相条，点它们改颜色。 */
     private static final int[] SWATCH_X = new int[12];
@@ -71,7 +80,11 @@ public final class PlannerRenderer {
     public static void render(GuiGraphicsExtractor g, MapView view, int mouseX, int mouseY,
                               List<RailRoute> routes, RailRoute current, int hoverIndex, int dragIndex) {
         nameRoute = null;
+        // 两个小按钮的命中框每帧重算：折叠起来没画，就不该再点得到。
         chipRoute = null;
+        easeRoute = null;
+        chipW = 0;
+        easeW = 0;
         LABELS.clear();
         RailRoute shown = Planner.displayRoute();
         int drawable = 0;
@@ -319,6 +332,22 @@ public final class PlannerRenderer {
                         maxDefl = Math.max(maxDefl, c.deflectionDegrees());
                     }
                     add(lines, colors, String.format(Loc.s("最小半径 %.1f · 最大偏角 %.1f°", "Min radius %.1f · max deflection %.1f°"), minR, maxDefl), TEXT);
+                    if (current.easement) {
+                        int eased = 0;
+                        double minLs = Double.MAX_VALUE;
+                        double maxLs = 0;
+                        for (Alignment.Corner c : al.corners()) {
+                            if (c.clothoid > 0.01) {
+                                eased++;
+                                minLs = Math.min(minLs, c.clothoid);
+                                maxLs = Math.max(maxLs, c.clothoid);
+                            }
+                        }
+                        if (eased > 0) {
+                            add(lines, colors, String.format(Loc.s("缓和 %d/%d 个弯 · Ls %.0f–%.0f 格", "Easement %d/%d bends · Ls %.0f–%.0f blocks"),
+                                    eased, al.corners().size(), minLs, maxLs), ACCENT2);
+                        }
+                    }
                 }
             }
             var ortho = current.ortho();
@@ -380,7 +409,7 @@ public final class PlannerRenderer {
         int ty = y + 7;
         g.text(font, Loc.s("铁路选线", "Rail Planner"), tx, ty, TITLE);
         g.text(font, Planner.isActive() ? Loc.s("● 规划中", "● Planning") : Loc.s("○ 只读", "○ Read-only"), tx + 62, ty, Planner.isActive() ? ACCENT : DIM);
-        drawOrthoChip(g, x, y, w, current);
+        drawChips(g, x, y, w, current);
         ty += lineH + 3;
         for (int i = 0; i < lines.size(); i++) {
             g.text(font, lines.get(i), tx, ty, colors.get(i));
@@ -475,8 +504,13 @@ public final class PlannerRenderer {
         }
         Alignment.Corner near = nearestCorner(al, view, mouseX, mouseY);
         if (near != null) {
-            tooltip(g, font, mouseX + 12, mouseY + 10, String.format("R %.1f · Δ %.1f° · T %.1f · L %.1f · E %.1f",
-                    near.radius, near.deflectionDegrees(), near.tangent, near.arcLength, near.external));
+            String tip = String.format("R %.1f · Δ %.1f° · T %.1f · L %.1f · E %.1f",
+                    near.radius, near.deflectionDegrees(), near.tangent, near.arcLength, near.external);
+            if (near.clothoid > 0.01) {
+                // 有缓和段的弯多报两个数：单侧缓和段长与回旋线参数 A。
+                tip += String.format(" · Ls %.1f · A %.0f", near.clothoid, near.clothoidParam());
+            }
+            tooltip(g, font, mouseX + 12, mouseY + 10, tip);
         }
     }
 
@@ -791,40 +825,70 @@ public final class PlannerRenderer {
         return Math.max(0, Math.min(1, (mx - hueX) / (double) hueW));
     }
 
-    /** 鼠标是不是停在那行线名上（双击它改名字和颜色）。 */
     /**
-     * 面板标题行右端那个「正交化」小按钮：点一下把这条线在正交与自由斜线之间切换。
+     * 面板标题行右端那两个小按钮：「正交化」在最右，「缓和化」排在它左边。
      *
-     * <p>只画在展开的面板上；折叠状态没地方放，展开再点（折叠那一行只报数）。</p>
+     * <p>都只画在展开的面板上；折叠状态没地方放，展开再点（折叠那一行只报数）。</p>
      */
-    private static void drawOrthoChip(GuiGraphicsExtractor g, int x, int y, int w, RailRoute current) {
+    private static void drawChips(GuiGraphicsExtractor g, int x, int y, int w, RailRoute current) {
         if (current == null) {
             return;
         }
         Font font = Minecraft.getInstance().font;
-        String text = current.orthogonal
+        String ortho = current.orthogonal
                 ? Loc.s("正交化：开", "Orthogonal: on")
                 : Loc.s("正交化：关", "Orthogonal: off");
-        int cw = font.width(text) + 10;
-        int cx = x + w - cw - 5;
+        String ease = current.easement
+                ? Loc.s("缓和化：开", "Easement: on")
+                : Loc.s("缓和化：关", "Easement: off");
+        int ow = font.width(ortho) + 10;
+        int ew = font.width(ease) + 10;
         int cy = y + 4;
-        chipX = cx;
+        int ox = x + w - ow - 5;
+        int ex = ox - ew - 3;
+        chipX = ox;
         chipY = cy;
-        chipW = cw;
+        chipW = ow;
         chipH = 12;
         chipRoute = current;
-        g.fill(cx, cy, cx + cw, cy + 12, current.orthogonal ? 0xFF1D3B2B : 0xFF23282F);
-        g.fill(cx, cy, cx + cw, cy + 1, current.orthogonal ? ACCENT : 0xFF4A5058);
-        g.text(font, text, cx + 5, cy + 2, current.orthogonal ? ACCENT : DIM);
+        easeX = ex;
+        easeY = cy;
+        easeW = ew;
+        easeH = 12;
+        easeRoute = current;
+        drawChip(g, font, ex, cy, ew, ease, current.easement, ACCENT2);
+        drawChip(g, font, ox, cy, ow, ortho, current.orthogonal, ACCENT);
     }
 
-    /** 鼠标是不是落在「正交化」那个小按钮上。 */
-    public static RailRoute hitChip(double mx, double my) {
-        if (chipRoute == null) {
-            return null;
+    private static void drawChip(GuiGraphicsExtractor g, Font font, int cx, int cy, int cw,
+                                 String text, boolean on, int accent) {
+        g.fill(cx, cy, cx + cw, cy + 12, on ? 0xFF1D3B2B : 0xFF23282F);
+        g.fill(cx, cy, cx + cw, cy + 1, on ? accent : 0xFF4A5058);
+        g.text(font, text, cx + 5, cy + 2, on ? accent : DIM);
+    }
+
+    /** 鼠标落在哪个小按钮上：0 没有，{@link #CHIP_ORTHO} / {@link #CHIP_EASEMENT}。 */
+    public static final int CHIP_NONE = 0;
+    public static final int CHIP_ORTHO = 1;
+    public static final int CHIP_EASEMENT = 2;
+
+    public static int hitChipKind(double mx, double my) {
+        if (inside(mx, my, chipX, chipY, chipW, chipH)) {
+            return CHIP_ORTHO;
         }
-        boolean inside = mx >= chipX && mx <= chipX + chipW && my >= chipY && my <= chipY + chipH;
-        return inside ? chipRoute : null;
+        if (inside(mx, my, easeX, easeY, easeW, easeH)) {
+            return CHIP_EASEMENT;
+        }
+        return CHIP_NONE;
+    }
+
+    /** 上一步点到的那条线（两个小按钮属于同一条线）。 */
+    public static RailRoute chipRoute() {
+        return chipRoute != null ? chipRoute : easeRoute;
+    }
+
+    private static boolean inside(double mx, double my, int x, int y, int w, int h) {
+        return w > 0 && h > 0 && mx >= x && mx <= x + w && my >= y && my <= y + h;
     }
 
     /** 鼠标是不是落在地图上某个线名标签上（叠在一起时取最后画的那个）。 */

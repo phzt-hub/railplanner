@@ -22,6 +22,12 @@ public final class RailRoute {
      * 「正交化」才转过来，不会自己动别人画好的线。
      */
     public boolean orthogonal;
+    /**
+     * 缓和曲线：每个弯铺成「直线—回旋线—圆弧—回旋线—直线」，曲率从 0 线性长到 1/R。
+     * 跟 {@link #orthogonal} 一样只影响这条线本身，老存档没有这一列读出来是 false——
+     * 要不要转由玩家在面板上点「缓和化」。
+     */
+    public boolean easement;
 
     private Alignment alignment;
     private BlockPath path;
@@ -50,11 +56,11 @@ public final class RailRoute {
             }
             double r = Math.max(2.0, this.radius);
             if (this.orthogonal) {
-                this.ortho = OrthoRoute.build(pts, r);
-                this.alignment = Alignment.ofOrthogonal(this.ortho.points(), r);
+                this.ortho = OrthoRoute.build(pts, r, this.easement);
+                this.alignment = Alignment.ofOrthogonal(this.ortho.points(), r, this.easement);
             } else {
                 this.ortho = null;
-                this.alignment = Alignment.of(pts, r);
+                this.alignment = Alignment.of(pts, r, this.easement);
             }
         }
         return this.alignment;

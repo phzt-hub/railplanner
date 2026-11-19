@@ -43,6 +43,8 @@ public final class RouteStore {
                     route.radius = r.radius > 0 ? r.radius : 24.0;
                     // 老文件没有这一列：读出来是关，老线保持原样，要转得手动点「正交化」。
                     route.orthogonal = r.orthogonal;
+                    // 同样：老文件没有这一列就是没缓和曲线，保持原线形。
+                    route.easement = r.easement;
                     if (r.anchors != null) {
                         for (int i = 0; i < r.anchors.size(); i++) {
                             Anchor anchor = Anchor.fromArray(r.anchors.get(i));
@@ -110,7 +112,7 @@ public final class RouteStore {
     public static void save(String worldId, List<RailRoute> routes) {
         Path p = file(worldId);
         FileDto dto = new FileDto();
-        dto.version = 4;
+        dto.version = 5;
         dto.world = worldId;
         dto.routes = new ArrayList<>();
         for (RailRoute route : routes) {
@@ -120,6 +122,7 @@ public final class RouteStore {
             r.color = route.color;
             r.radius = route.radius;
             r.orthogonal = route.orthogonal;
+            r.easement = route.easement;
             r.anchors = new ArrayList<>();
             r.anchorNames = new ArrayList<>();
             for (Anchor a : route.anchors) {
@@ -151,6 +154,8 @@ public final class RouteStore {
         double radius;
         /** 这一条线走正交布线（version 4 起）；老文件没有就是 false。 */
         boolean orthogonal;
+        /** 这一条线每个弯插缓和曲线（version 5 起）；老文件没有就是 false。 */
+        boolean easement;
         List<int[]> anchors;
         /** 与 anchors 同下标的点名字（version 3 起）。 */
         List<String> anchorNames;

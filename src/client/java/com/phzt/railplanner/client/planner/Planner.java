@@ -361,6 +361,7 @@ public final class Planner {
                 existing.color = fresh.color;
                 existing.radius = fresh.radius;
                 existing.orthogonal = fresh.orthogonal;
+                existing.easement = fresh.easement;
                 existing.anchors.clear();
                 existing.anchors.addAll(fresh.anchors);
                 existing.invalidate();
@@ -401,6 +402,7 @@ public final class Planner {
                 PALETTE[routes.size() % PALETTE.length]);
         // 新线跟着设置页的默认值走；老线路读盘时没这一项，不会被顺手改掉。
         r.orthogonal = RailConfig.get().orthogonal;
+        r.easement = RailConfig.get().easement;
         routes.add(r);
         current = r;
         displayed = r;
@@ -451,6 +453,46 @@ public final class Planner {
                 "：" + ortho.bends() + " 个 90° 弯，端点外推 " + Math.round(ortho.pushed()) + " 格",
                 ": " + ortho.bends() + " right-angle bends, ends pushed " + Math.round(ortho.pushed()) + " blocks");
         toast(route.name + extra);
+    }
+
+    /**
+     * 面板上的「缓和化」小按钮：给这条线的每个弯插上 / 去掉缓和曲线。
+     *
+     * <p>只改这一条线的标记，锚点一个不动。老线路要转过来就得点这一下
+     * （设置页那个开关只管新线）。</p>
+     */
+    public static void toggleEasement(RailRoute route) {
+        if (route == null) {
+            return;
+        }
+        route.easement = !route.easement;
+        route.invalidate();
+        stats = null;
+        statsDirty = true;
+        markDirty();
+        if (!route.easement) {
+            toast(Loc.s("已去掉缓和曲线：每个弯恢复纯圆曲线", "Easement off: plain circular curves"));
+            return;
+        }
+        Alignment al = route.alignment();
+        int total = al.corners().size();
+        int eased = 0;
+        double minLs = Double.MAX_VALUE;
+        double maxLs = 0;
+        for (Alignment.Corner c : al.corners()) {
+            if (c.clothoid > 0.01) {
+                eased++;
+                minLs = Math.min(minLs, c.clothoid);
+                maxLs = Math.max(maxLs, c.clothoid);
+            }
+        }
+        if (total == 0) {
+            toast(Loc.s("这条线还没有弯，先点点位", "No bends yet — add a point first"));
+            return;
+        }
+        toast(Loc.s(eased + "/" + total + " 个弯插上缓和曲线"
+                        + (eased > 0 ? String.format("，Ls %.1f–%.1f 格", minLs, maxLs) : ""),
+                eased + "/" + total + " bends eased"));
     }
 
     public static void addAnchor(MapView view, double gx, double gy) {
@@ -525,9 +567,14 @@ public final class Planner {
             return true;
         }
         if (button == 1) {
-            RailRoute chip = PlannerRenderer.hitChip(gx, gy);
-            if (chip != null) {
-                toggleOrthogonal(chip);
+            int chip = PlannerRenderer.hitChipKind(gx, gy);
+            if (chip != PlannerRenderer.CHIP_NONE) {
+                RailRoute chipRoute = PlannerRenderer.chipRoute();
+                if (chip == PlannerRenderer.CHIP_EASEMENT) {
+                    toggleEasement(chipRoute);
+                } else {
+                    toggleOrthogonal(chipRoute);
+                }
                 return true;
             }
             RailRoute label = PlannerRenderer.hitLabel(gx, gy);

@@ -95,8 +95,137 @@ public class GeomCheck {
         check("正交两弯半径", a4.corners().size() == 2 && radiiOk, "corners=" + a4.corners().size());
         check("正交连续", contiguous(Rasterizer.rasterize(a4)), "cells=" + Rasterizer.rasterize(a4).size());
 
+        // 12. 缓和曲线：90° 弯铺成 直线—回旋线—圆弧—回旋线—直线
+        Alignment e1 = Alignment.of(List.of(new Vec2(0.5, 0.5), new Vec2(100.5, 0.5), new Vec2(100.5, 100.5)), 20, true);
+        double ls = Alignment.easementWanted(20, Math.PI / 2);
+        Alignment.Corner ec = e1.corners().get(0);
+        check("缓和段长", Math.abs(ec.clothoid - ls) < 1e-6, "Ls=" + f(ec.clothoid) + " 期望 " + f(ls));
+        check("线形是缓-圆-缓", "L,C,A,C,L".equals(kinds(e1)), kinds(e1));
+        check("切线长按缓圆缓算", Math.abs(ec.tangent - Alignment.tangentFor(20, Math.PI / 2, ls)) < 1e-6,
+                "T=" + f(ec.tangent) + " 期望 " + f(Alignment.tangentFor(20, Math.PI / 2, ls)));
+        check("回旋线参数A", Math.abs(ec.clothoidParam() - Math.sqrt(20 * ls)) < 1e-9, "A=" + f(ec.clothoidParam()));
+        double alphaE = ls / (2 * 20);
+        double expectCurve = 2 * ls + 20 * (Math.PI / 2 - 2 * alphaE);
+        check("曲线长=2Ls+R(Δ-2α)", Math.abs(ec.arcLength - expectCurve) < 1e-6,
+                "L=" + f(ec.arcLength) + " 期望 " + f(expectCurve));
+        double expectTotal = 2 * (100 - ec.tangent) + expectCurve;
+        check("总长", Math.abs(e1.length() - expectTotal) < 2e-3, "len=" + f(e1.length()) + " 期望 " + f(expectTotal));
+        check("缓和后端点仍落格", e1.pointAt(e1.length()).sub(new Vec2(100.5, 100.5)).length() < 1e-6,
+                "end=" + f(e1.pointAt(e1.length()).x) + "," + f(e1.pointAt(e1.length()).z));
+        check("缓和后位置连续", maxGap(e1) < 1e-4, "maxGap=" + maxGap(e1));
+        check("缓和后切线连续", maxHeadingJump(e1) < 1e-4, "maxJump=" + maxHeadingJump(e1));
+
+        // 13. 回旋线的位置跟独立积分对得上（Simpson 表 vs 20 万步中点法）
+        Alignment.Piece cp = firstKind(e1, Alignment.Kind.CLOTHOID);
+        Vec2 cpStart = e1.pointAt(cp.startS);
+        Vec2 brute = integrate(cpStart.x, cpStart.z, cp.h0, cp.k0, cp.k1, cp.length);
+        Vec2 got = e1.pointAt(cp.startS + cp.length);
+        check("回旋线形状可信", brute.sub(got).length() < 1e-3, "偏差 " + f(brute.sub(got).length()) + " 格");
+
+        // 14. 腿太短：缓和段自动缩短，圆弧还在（不能缩没）
+        Alignment e2 = Alignment.of(List.of(new Vec2(0.5, 0.5), new Vec2(70.5, 0.5), new Vec2(70.5, 70.5)), 25, true);
+        Alignment.Corner sc = e2.corners().get(0);
+        double cap = 70 * 0.49;
+        double want25 = Alignment.easementWanted(25, Math.PI / 2);
+        check("余量不足时缓和段被夹", sc.clothoid > 1 && sc.clothoid < want25 - 0.5,
+                "Ls=" + f(sc.clothoid) + " 想要 " + f(want25));
+        check("短腿切线不超预算", sc.tangent <= cap + 1e-6, "T=" + f(sc.tangent) + " cap=" + f(cap));
+        check("短腿仍是缓-圆-缓", "L,C,A,C,L".equals(kinds(e2)), kinds(e2));
+
+        // 14b. 腿短到连半径都吃满：先缩半径，没有余量就不插缓和段（半径优先）
+        Alignment e4 = Alignment.of(List.of(new Vec2(0.5, 0.5), new Vec2(30.5, 0.5), new Vec2(30.5, 30.5)), 20, true);
+        Alignment.Corner clamped = e4.corners().get(0);
+        check("吃满时半径先缩", Math.abs(clamped.radius - 14.7) < 1e-6, "R=" + f(clamped.radius));
+        check("没余量就不插缓和段", clamped.clothoid == 0, "Ls=" + f(clamped.clothoid));
+        check("没缓和段也能铺", !e4.pieces().isEmpty() && maxGap(e4) < 1e-3, "pieces=" + e4.pieces().size());
+
+        // 15. 正交布线 + 缓和：半径 24，切线按缓圆缓加长
+        OrthoRoute.Result o5 = OrthoRoute.build(List.of(new Vec2(0.5, 0.5), new Vec2(300.5, 300.5)), 24, true);
+        Alignment a5 = Alignment.ofOrthogonal(o5.points(), 24, true);
+        Alignment.Corner oc = a5.corners().get(0);
+        double tol90 = Math.PI / 2;
+        double ls90 = Alignment.easementWanted(24, tol90);
+        check("正交缓和半径不变", Math.abs(oc.radius - 24) < 1e-9, "R=" + f(oc.radius));
+        check("正交缓和段长", Math.abs(oc.clothoid - ls90) < 1e-6, "Ls=" + f(oc.clothoid) + " 期望 " + f(ls90));
+        check("正交外推为零", o5.pushed() < 1e-9, "pushed=" + f(o5.pushed()));
+        check("正交缓和端点落格", a5.pointAt(a5.length()).sub(new Vec2(300.5, 300.5)).length() < 1e-6,
+                "end=" + f(a5.pointAt(a5.length()).x) + "," + f(a5.pointAt(a5.length()).z));
+        check("正交缓和连续", maxGap(a5) < 1e-4 && maxHeadingJump(a5) < 1e-4,
+                "gap=" + maxGap(a5) + " jump=" + maxHeadingJump(a5));
+        BlockPath p5 = Rasterizer.rasterize(a5);
+        check("正交缓和像素化8邻接", contiguous(p5), "cells=" + p5.size());
+        double pathLen5 = 0;
+        for (int i = 1; i < p5.size(); i++) pathLen5 += Math.hypot(p5.xs[i] - p5.xs[i - 1], p5.zs[i] - p5.zs[i - 1]);
+        check("像素化长度接近", Math.abs(pathLen5 - a5.length()) / a5.length() < 0.05,
+                "path=" + f(pathLen5) + " geom=" + f(a5.length()));
+
+        // 16. 关掉缓和曲线 == 老行为（同一条线两种算法只差线形）
+        Alignment e3 = Alignment.of(List.of(new Vec2(0.5, 0.5), new Vec2(100.5, 0.5), new Vec2(100.5, 100.5)), 20, false);
+        check("关掉后没有回旋线", !"L,C,A,C,L".equals(kinds(e3)) && e3.corners().get(0).clothoid == 0,
+                kinds(e3));
+
         System.out.println(fails == 0 ? "ALL PASS" : ("FAILURES: " + fails));
         if (fails > 0) System.exit(1);
+    }
+
+    static String f(double v) {
+        return String.format("%.4f", v);
+    }
+
+    /** 线形的种类串：L 直线 / C 回旋线 / A 圆弧。 */
+    static String kinds(Alignment al) {
+        StringBuilder sb = new StringBuilder();
+        for (Alignment.Piece p : al.pieces()) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(p.kind == Alignment.Kind.LINE ? "L" : p.kind == Alignment.Kind.ARC ? "A" : "C");
+        }
+        return sb.toString();
+    }
+
+    static Alignment.Piece firstKind(Alignment al, Alignment.Kind kind) {
+        for (Alignment.Piece p : al.pieces()) {
+            if (p.kind == kind) return p;
+        }
+        throw new IllegalStateException("没有 " + kind);
+    }
+
+    /**
+     * 接缝处的位置跳变：跨过接缝走 2e-4 格，两点就该正好隔 2e-4 格（单位速度参数化）。
+     * 差得远就说明接缝断开或者里程跳变。
+     */
+    static double maxGap(Alignment al) {
+        double worst = 0;
+        for (int i = 1; i < al.pieces().size(); i++) {
+            double s = al.pieces().get(i).startS;
+            double d = al.pointAt(s - 1e-4).sub(al.pointAt(s + 1e-4)).length();
+            worst = Math.max(worst, Math.abs(d - 2e-4));
+        }
+        return worst;
+    }
+
+    /** 相邻两段接缝处的最大走向跳变（C1 连续就该是 0）。 */
+    static double maxHeadingJump(Alignment al) {
+        double worst = 0;
+        for (int i = 1; i < al.pieces().size(); i++) {
+            double s = al.pieces().get(i).startS;
+            worst = Math.max(worst, Math.abs(al.headingAt(s - 1e-4) - al.headingAt(s + 1e-4)));
+        }
+        return worst;
+    }
+
+    /** 独立的数值积分（20 万步中点法），用来校验回旋线采样表。 */
+    static Vec2 integrate(double x0, double z0, double h0, double k0, double k1, double length) {
+        int n = 200000;
+        double h = length / n;
+        double x = x0;
+        double z = z0;
+        for (int i = 0; i < n; i++) {
+            double s = (i + 0.5) * h;
+            double phi = h0 + k0 * s + (k1 - k0) * s * s / (2 * length);
+            x += Math.cos(phi) * h;
+            z += Math.sin(phi) * h;
+        }
+        return new Vec2(x, z);
     }
 
     /** 折线每一段是不是都严格沿 X 或 Z。 */

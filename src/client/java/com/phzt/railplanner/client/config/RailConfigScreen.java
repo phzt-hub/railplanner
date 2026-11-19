@@ -188,6 +188,16 @@ public class RailConfigScreen extends Screen {
         }).bounds(rightX, right, colW, 20).build());
         right += ROW;
 
+        // 缓和曲线：同样只管新建的线，老线路在地图面板上点「缓和化」才转
+        this.addRenderableWidget(Button.builder(labelEasement(), b -> {
+            RailConfig cfg = RailConfig.get();
+            cfg.easement = !cfg.easement;
+            cfg.save();
+            b.setMessage(labelEasement());
+            LOG.info("缓和曲线（新线默认值） → {}", cfg.easement ? "开" : "关");
+        }).bounds(rightX, right, colW, 20).build());
+        right += ROW;
+
         this.addRenderableWidget(Button.builder(labelUpdates(), b -> {
             RailConfig cfg = RailConfig.get();
             cfg.checkUpdates = !cfg.checkUpdates;
@@ -464,6 +474,12 @@ public class RailConfigScreen extends Screen {
         return Component.literal(RailConfig.get().orthogonal
                 ? Loc.s("正交布线：开（新线沿 X/Z 铺）", "Orthogonal routing: on")
                 : Loc.s("正交布线：关（新线可斜铺）", "Orthogonal routing: off"));
+    }
+
+    private static Component labelEasement() {
+        return Component.literal(RailConfig.get().easement
+                ? Loc.s("缓和曲线：开（新线缓-圆-缓）", "Easement curves: on")
+                : Loc.s("缓和曲线：关（新线纯圆曲线）", "Easement curves: off"));
     }
 
     private static Component labelLock() {

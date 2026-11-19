@@ -62,6 +62,14 @@ public final class OrthoRoute {
      * @param radius 设计半径，也就是 90° 弯的切线长
      */
     public static Result build(List<Vec2> raw, double radius) {
+        return build(raw, radius, false);
+    }
+
+    /**
+     * 同上，额外告诉它这一段要不要插缓和曲线——插了之后 90° 弯的切线长是 T 而不是 R，
+     * 两条腿都得按 T 去要长度，否则拐角会被挤成没有缓和段的急弯。
+     */
+    public static Result build(List<Vec2> raw, double radius, boolean easement) {
         List<Vec2> anchors = dedupe(raw);
         if (anchors.size() < 2) {
             return new Result(anchors, 0, 0.0);
@@ -73,7 +81,7 @@ public final class OrthoRoute {
             int leg = -1;
             double deficit = 0.0;
             for (int i = 0; i + 1 < verts.size(); i++) {
-                double need = need(verts, i, r);
+                double need = need(verts, i, r, easement);
                 double have = verts.get(i + 1).p().sub(verts.get(i).p()).length();
                 if (need - have > deficit + EPS) {
                     deficit = need - have;
@@ -117,14 +125,24 @@ public final class OrthoRoute {
         return out;
     }
 
-    /** 这一截直段最短要多少：两头都是弯要 2R，一头是弯要 R，两头都不是随便。 */
-    private static double need(List<Vertex> verts, int leg, double r) {
+    /** 90° 弯在给定半径下要吃多长的切线：有缓和段按缓圆缓算，没有就是 R。 */
+    static double bendTangent(double r, boolean easement) {
+        if (!easement) {
+            return r;
+        }
+        double delta = Math.PI / 2.0;
+        return Alignment.tangentFor(r, delta, Alignment.easementWanted(r, delta));
+    }
+
+    /** 这一截直段最短要多少：两头都是弯要 2T，一头是弯要 T，两头都不是随便。 */
+    private static double need(List<Vertex> verts, int leg, double r, boolean easement) {
         boolean head = isBend(verts, leg);
         boolean tail = isBend(verts, leg + 1);
-        if (head && tail) {
-            return 2.0 * r;
+        if (!head && !tail) {
+            return 0.0;
         }
-        return (head || tail) ? r : 0.0;
+        double t = bendTangent(r, easement);
+        return (head && tail) ? 2.0 * t : t;
     }
 
     /** 这个顶点是不是 90° 拐点（同向直着过去、掉头都不算）。 */
